@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DEHSE — Finanzas: Costeo, Precios y Estado de Resultados</title>
+<style>
+  :root{
+    --red: #C0392B;
+    --red-deep: #8E2418;
+    --ink: #1E1B18;
+    --ink-soft: #3A332E;
+    --paper: #FAF7F2;
+    --paper-warm: #F2ECE3;
+    --line: #E4DCCF;
+    --line-strong: #D8CEBC;
+    --gold: #C89B3C;
+    --gold-soft: #F3E7CB;
+    --green: #2E7D4F;
+    --green-deep: #1D5136;
+    --green-soft: #E4F3EA;
+    --red-soft: #FBEAE7;
+    --gray: #7A7168;
+    --shadow: 0 10px 30px -12px rgba(30,27,24,0.18);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+    background:var(--paper); color:var(--ink); -webkit-font-smoothing:antialiased;
+  }
+
+  /* ── ACCESO ─────────────────────────────────────────────────────────── */
+  #gate{
+    position:fixed; inset:0; z-index:50; display:flex; align-items:center; justify-content:center;
+    background:linear-gradient(160deg, var(--red-deep), var(--red) 60%); padding:24px;
+  }
+  #gate .box{
+    background:var(--paper); border-radius:20px; padding:36px 32px; max-width:360px; width:100%;
+    box-shadow:var(--shadow); text-align:center;
+  }
+  #gate h1{font-size:20px; margin:0 0 6px;}
+  #gate p{color:var(--gray); font-size:14px; margin:0 0 20px;}
+  #gate input{
+    width:100%; padding:14px 16px; border-radius:12px; border:1.5px solid var(--line-strong);
+    font-size:16px; text-align:center; letter-spacing:0.15em; margin-bottom:14px;
+  }
+  #gate input:focus{outline:none; border-color:var(--red);}
+  #gate button{
+    width:100%; padding:14px; border-radius:12px; border:none; background:var(--red);
+    color:#fff; font-weight:700; font-size:15px; cursor:pointer;
+  }
+  #gate button:hover{background:var(--red-deep);}
+  #gate .error{color:var(--red-deep); font-size:13px; margin-top:10px; min-height:16px;}
+
+  /* ── APP ────────────────────────────────────────────────────────────── */
+  #app{display:none; max-width:1000px; margin:0 auto; padding:28px 20px 90px;}
+  header.top{display:flex; align-items:center; justify-content:space-between; margin-bottom:22px; flex-wrap:wrap; gap:10px;}
+  header.top h1{font-size:21px; margin:0;}
+  header.top .tag{font-size:12px; color:var(--gray); background:var(--paper-warm); padding:6px 12px; border-radius:999px; border:1px solid var(--line);}
+
+  /* Tabs */
+  .tabs{display:flex; gap:6px; margin-bottom:22px; border-bottom:2px solid var(--line-strong); flex-wrap:wrap;}
+  .tab-btn{
+    padding:12px 16px; border:none; background:none; font-size:14px; font-weight:600; color:var(--gray);
+    cursor:pointer; border-bottom:3px solid transparent; margin-bottom:-2px; transition:color .15s ease, border-color .15s ease;
+    white-space:nowrap;
+  }
+  .tab-btn:hover{color:var(--ink);}
+  .tab-btn.activo{color:var(--red-deep); border-bottom-color:var(--red-deep);}
+  .tab-panel{display:none;}
+  .tab-panel.activo{display:block;}
+
+  .card{background:#fff; border:1px solid var(--line); border-radius:16px; padding:22px; box-shadow:var(--shadow); margin-bottom:20px;}
+  .card h3{margin-top:0; font-size:15px;}
+  .card .subtitulo{color:var(--gray); font-size:13px; margin:-6px 0 16px;}
+
+  /* Formularios */
+  .form-grid{display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:16px;}
+  .form-grid.cols-3{grid-template-columns:1fr 1fr 1fr;}
+  @media (max-width:620px){ .form-grid, .form-grid.cols-3{grid-template-columns:1fr;} }
+  .campo{display:flex; flex-direction:column; gap:6px;}
+  .campo label{font-size:12.5px; color:var(--gray); font-weight:600;}
+  .campo input, .campo select, .campo textarea{
+    padding:11px 13px; border-radius:10px; border:1.5px solid var(--line-strong); font-size:14.5px; font-family:inherit; background:#fff;
+  }
+  .campo input:focus, .campo select:focus, .campo textarea:focus{outline:none; border-color:var(--red);}
+  .campo.full{grid-column:1 / -1;}
+  .btn-primary{
+    padding:13px 22px; border:none; border-radius:10px; background:var(--red); color:#fff;
+    font-weight:700; font-size:14.5px; cursor:pointer; transition:background .15s ease;
+  }
+  .btn-primary:hover{background:var(--red-deep);}
+  .btn-secundario{
+    padding:11px 18px; border:1.5px solid var(--line-strong); border-radius:10px; background:#fff;
+    color:var(--ink-soft); font-weight:600; font-size:13.5px; cursor:pointer;
+  }
+  .btn-secundario:hover{border-color:var(--red);}
+  .btn-texto{
+    border:none; background:none; color:var(--red-deep); font-weight:600; font-size:13px; cursor:pointer; padding:4px 6px;
+  }
+  .btn-texto.peligro{color:var(--gray);}
+  .btn-texto.peligro:hover{color:var(--red-deep);}
+  .msg-ok{background:var(--green-soft); color:var(--green-deep); padding:11px 14px; border-radius:10px; font-size:13.5px; margin-top:12px;}
+  .msg-error{background:var(--red-soft); color:var(--red-deep); padding:11px 14px; border-radius:10px; font-size:13.5px; margin-top:12px;}
+
+  /* Tabla genérica de registros */
+  table.registros{width:100%; border-collapse:collapse; font-size:13.5px; margin-top:8px;}
+  table.registros th{text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:0.04em; color:var(--gray); border-bottom:1.5px solid var(--line-strong); padding:8px 8px;}
+  table.registros td{padding:8px 8px; border-bottom:1px solid var(--line); vertical-align:middle;}
+  table.registros td.num{text-align:right; font-variant-numeric:tabular-nums;}
+  table.registros tr:hover td{background:var(--paper-warm);}
+
+  .pill{display:inline-block; padding:3px 10px; border-radius:999px; font-size:11.5px; font-weight:700;}
+  .pill.bueno{background:var(--green-soft); color:var(--green-deep);}
+  .pill.regular{background:var(--gold-soft); color:#8a6a1f;}
+  .pill.malo{background:var(--red-soft); color:var(--red-deep);}
+
+  /* Vista previa de costeo en vivo */
+  .preview-costeo{
+    display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin:4px 0 18px;
+  }
+  @media (max-width:620px){ .preview-costeo{grid-template-columns:1fr 1fr;} }
+  .preview-caja{
+    background:var(--paper-warm); border-radius:12px; padding:12px 14px; text-align:center;
+  }
+  .preview-caja .etq{font-size:11px; color:var(--gray); text-transform:uppercase; letter-spacing:0.03em; margin-bottom:4px;}
+  .preview-caja .cif{font-size:17px; font-weight:800;}
+  .preview-caja.bueno .cif{color:var(--green-deep);}
+  .preview-caja.malo .cif{color:var(--red-deep);}
+
+  /* Estado de resultados */
+  .selector-periodo{display:flex; gap:10px; align-items:flex-end; margin-bottom:20px; flex-wrap:wrap;}
+
+  .banner-resultado{
+    border-radius:16px; padding:22px 24px; margin-bottom:22px; display:flex; align-items:center; gap:16px;
+  }
+  .banner-resultado.ganancia{background:var(--green-soft); color:var(--green-deep);}
+  .banner-resultado.perdida{background:var(--red-soft); color:var(--red-deep);}
+  .banner-resultado .icono{font-size:34px;}
+  .banner-resultado .texto .titulo{font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; opacity:0.85;}
+  .banner-resultado .texto .cifra{font-size:26px; font-weight:800;}
+
+  .estado-linea{
+    display:flex; align-items:center; justify-content:space-between; padding:11px 4px;
+    border-bottom:1px solid var(--line); font-size:14.5px;
+  }
+  .estado-linea.subtotal{font-weight:800; border-top:2px solid var(--ink); border-bottom:2px solid var(--ink); margin-top:4px; padding-top:12px; padding-bottom:12px;}
+  .estado-linea.resta .val{color:var(--red-deep);}
+  .estado-linea .val{font-variant-numeric:tabular-nums;}
+  .estado-linea.editable{background:var(--paper-warm); border-radius:10px; padding:11px 12px; border-bottom:none; margin:6px 0;}
+  .estado-linea.editable input{
+    width:90px; padding:7px 9px; border-radius:8px; border:1.5px solid var(--line-strong); text-align:right; font-size:14px;
+  }
+  .estado-linea .etiqueta small{display:block; color:var(--gray); font-size:11.5px; font-weight:400; margin-top:2px;}
+
+  .alerta-costeo{
+    background:var(--gold-soft); border:1px solid var(--gold); border-radius:12px; padding:14px 16px;
+    font-size:13px; margin-top:20px; line-height:1.5;
+  }
+
+  .estado-carga, .estado-vacio{text-align:center; padding:50px 20px; color:var(--gray); font-size:14px;}
+
+  @media print{
+    #gate, .tabs, header.top .tag, .no-print{display:none !important;}
+    #app{display:block !important; max-width:100%; padding:0;}
+    .card{box-shadow:none; border:none;}
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════ ACCESO ═══════════════ -->
+<div id="gate">
+  <div class="box">
+    <h1>🔒 DEHSE — Finanzas</h1>
+    <p>Acceso solo para el equipo autorizado.<br>Ingresa el código de acceso.</p>
+    <input type="password" id="codigoAcceso" placeholder="Código de acceso" maxlength="20" autocomplete="off">
+    <button onclick="verificarAcceso()">Entrar</button>
+    <div class="error" id="errorAcceso"></div>
+  </div>
+</div>
+
+<!-- ═══════════════ APP ═══════════════ -->
+<div id="app">
+  <header class="top">
+    <h1>📊 Finanzas DEHSE</h1>
+    <span class="tag">Conectado a tu Google Sheet</span>
+  </header>
+
+  <div class="tabs no-print">
+    <button class="tab-btn activo" data-tab="tabCosteo" onclick="cambiarTab('tabCosteo')">🧮 Costeo y Precios</button>
+    <button class="tab-btn" data-tab="tabVenta" onclick="cambiarTab('tabVenta')">💰 Registrar venta</button>
+    <button class="tab-btn" data-tab="tabGasto" onclick="cambiarTab('tabGasto')">🧾 Registrar gasto</button>
+    <button class="tab-btn" data-tab="tabResultados" onclick="cambiarTab('tabResultados')">📈 Estado de Resultados</button>
+  </div>
+
+  <!-- ───────── TAB: COSTEO Y PRECIOS ───────── -->
+  <div class="tab-panel activo" id="tabCosteo">
+    <div class="card">
+      <h3 id="tituloFormCosteo">Nuevo modelo</h3>
+      <div class="subtitulo">Ingresa cuánto te cuesta hacer el modelo y a qué precio lo vendes. El margen se calcula solo.</div>
+
+      <input type="hidden" id="costeoId">
+      <div class="form-grid">
+        <div class="campo">
+          <label>Nombre del modelo</label>
+          <input type="text" id="costeoNombre" placeholder="Ej. Mochila Urban 20L" oninput="actualizarPreviewCosteo()">
+        </div>
+        <div class="campo">
+          <label>Categoría</label>
+          <input type="text" id="costeoCategoria" list="sugerenciasCategoriaCosteo" placeholder="Ej. Mochilas urbanas">
+          <datalist id="sugerenciasCategoriaCosteo"></datalist>
+        </div>
+      </div>
+
+      <div class="form-grid cols-3">
+        <div class="campo">
+          <label>Costo de materiales (S/)</label>
+          <input type="number" id="costeoCostoMateriales" min="0" step="0.01" value="0" oninput="actualizarPreviewCosteo()">
+        </div>
+        <div class="campo">
+          <label>Costo de mano de obra (S/)</label>
+          <input type="number" id="costeoCostoManoObra" min="0" step="0.01" value="0" oninput="actualizarPreviewCosteo()">
+        </div>
+        <div class="campo">
+          <label>Otros costos (S/) <small style="color:var(--gray);">empaque, flete, etc.</small></label>
+          <input type="number" id="costeoOtrosCostos" min="0" step="0.01" value="0" oninput="actualizarPreviewCosteo()">
+        </div>
+      </div>
+
+      <div class="form-grid">
+        <div class="campo">
+          <label>Precio de venta (S/)</label>
+          <input type="number" id="costeoPrecioVenta" min="0" step="0.01" value="0" oninput="actualizarPreviewCosteo()">
+        </div>
+      </div>
+
+      <div class="preview-costeo">
+        <div class="preview-caja">
+          <div class="etq">Costo total</div>
+          <div class="cif" id="previewCostoTotal">S/ 0.00</div>
+        </div>
+        <div class="preview-caja" id="cajaMargenSoles">
+          <div class="etq">Margen (S/)</div>
+          <div class="cif" id="previewMargenSoles">S/ 0.00</div>
+        </div>
+        <div class="preview-caja" id="cajaMargenPct">
+          <div class="etq">Margen (%)</div>
+          <div class="cif" id="previewMargenPct">0%</div>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <button class="btn-primary" onclick="guardarCosteo()">Guardar modelo</button>
+        <button class="btn-secundario no-print" id="btnCancelarEdicionCosteo" style="display:none;" onclick="cancelarEdicionCosteo()">Cancelar edición</button>
+      </div>
+      <div id="msgCosteo"></div>
+    </div>
+
+    <div class="card">
+      <h3>Tus modelos y su margen</h3>
+      <div class="subtitulo">Toca "Editar" en cualquier fila para modificarla.</div>
+      <div id="tablaCosteo"><div class="estado-carga">Cargando…</div></div>
+    </div>
+  </div>
+
+  <!-- ───────── TAB: REGISTRAR VENTA ───────── -->
+  <div class="tab-panel" id="tabVenta">
+    <div class="card">
+      <div class="form-grid">
+        <div class="campo">
+          <label>Fecha</label>
+          <input type="date" id="ventaFecha">
+        </div>
+        <div class="campo">
+          <label>Categoría</label>
+          <select id="ventaCategoria" onchange="actualizarModelosVenta()"></select>
+        </div>
+        <div class="campo">
+          <label>Modelo</label>
+          <select id="ventaModelo" onchange="autocompletarPrecioVenta()"></select>
+        </div>
+        <div class="campo">
+          <label>Cantidad</label>
+          <input type="number" id="ventaCantidad" min="1" value="1" oninput="calcularTotalVenta()">
+        </div>
+        <div class="campo">
+          <label>Precio unitario cobrado (S/)</label>
+          <input type="number" id="ventaPrecio" min="0" step="0.01" oninput="calcularTotalVenta()">
+        </div>
+        <div class="campo">
+          <label>Total de la venta</label>
+          <input type="text" id="ventaTotal" disabled style="background:var(--paper-warm); font-weight:700;">
+        </div>
+      </div>
+      <button class="btn-primary" onclick="enviarVenta()">Registrar venta</button>
+      <div id="msgVenta"></div>
+    </div>
+
+    <div class="card">
+      <h3>Ventas registradas este mes</h3>
+      <div id="tablaVentasRecientes"><div class="estado-carga">Cargando…</div></div>
+    </div>
+  </div>
+
+  <!-- ───────── TAB: REGISTRAR GASTO ───────── -->
+  <div class="tab-panel" id="tabGasto">
+    <div class="card">
+      <div class="form-grid">
+        <div class="campo">
+          <label>Fecha</label>
+          <input type="date" id="gastoFecha">
+        </div>
+        <div class="campo">
+          <label>Tipo</label>
+          <select id="gastoTipo">
+            <option value="Administrativo">Administrativo</option>
+            <option value="Venta">De venta / marketing</option>
+            <option value="Financiero">Financiero (bancos, préstamos)</option>
+            <option value="Otro">Otro</option>
+          </select>
+        </div>
+        <div class="campo full">
+          <label>Categoría</label>
+          <input type="text" id="gastoCategoria" list="sugerenciasCategoria" placeholder="Ej. Alquiler del taller">
+          <datalist id="sugerenciasCategoria">
+            <option value="Alquiler del taller / local">
+            <option value="Sueldos administrativos">
+            <option value="Servicios (luz, agua, internet)">
+            <option value="Marketing y publicidad">
+            <option value="Transporte y logística">
+            <option value="Mantenimiento de equipos">
+            <option value="Comisiones bancarias">
+            <option value="Impuestos municipales">
+          </datalist>
+        </div>
+        <div class="campo full">
+          <label>Descripción (opcional)</label>
+          <input type="text" id="gastoDescripcion" placeholder="Detalle breve">
+        </div>
+        <div class="campo">
+          <label>Monto (S/)</label>
+          <input type="number" id="gastoMonto" min="0" step="0.01">
+        </div>
+      </div>
+      <button class="btn-primary" onclick="enviarGasto()">Registrar gasto</button>
+      <div id="msgGasto"></div>
+    </div>
+
+    <div class="card">
+      <h3>Gastos registrados este mes</h3>
+      <div id="tablaGastosRecientes"><div class="estado-carga">Cargando…</div></div>
+    </div>
+  </div>
+
+  <!-- ───────── TAB: ESTADO DE RESULTADOS ───────── -->
+  <div class="tab-panel" id="tabResultados">
+    <div class="card no-print">
+      <div class="selector-periodo">
+        <div class="campo">
+          <label>Mes</label>
+          <select id="selMes"></select>
+        </div>
+        <div class="campo">
+          <label>Año</label>
+          <input type="number" id="selAnio" style="width:100px;">
+        </div>
+        <button class="btn-primary" onclick="generarEstadoResultados()">Generar</button>
+        <button class="btn-secundario" onclick="window.print()">🖨️ Imprimir / PDF</button>
+      </div>
+    </div>
+
+    <div id="contenidoEstado">
+      <div class="estado-vacio">Elige un mes y año, y presiona "Generar" para ver el Estado de Resultados.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =============================================================
+   CONFIGURACIÓN
+   ============================================================= */
+const CONFIG = {
+  // Pega aquí la URL de tu Apps Script (la de ESTE proyecto financiero,
+  // no la del catálogo — son independientes).
+  appsScriptUrl: "PEGA_AQUI_TU_URL_DE_APPS_SCRIPT",
+  // Código de acceso simple para las 2-3 personas de confianza.
+  // ADVERTENCIA: barrera básica, no es seguridad real (visible en el
+  // código fuente). Si necesitas más, pide que se agregue login real.
+  codigoAcceso: "dehse2024"
+};
+
+const NOMBRES_MES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+
+let PRODUCTOS = [];
+let COSTEO_LISTA = [];
+
+/* =============================================================
+   ACCESO
+   ============================================================= */
+function verificarAcceso(){
+  const val = document.getElementById("codigoAcceso").value.trim();
+  const err = document.getElementById("errorAcceso");
+  if (val === CONFIG.codigoAcceso) {
+    entrarApp();
+  } else {
+    err.textContent = "Código incorrecto.";
+  }
+}
+document.getElementById("codigoAcceso").addEventListener("keydown", e => {
+  if (e.key === "Enter") verificarAcceso();
+});
+
+function entrarApp(){
+  document.getElementById("gate").style.display = "none";
+  document.getElementById("app").style.display = "block";
+  try { sessionStorage.setItem("dehse_finanzas_ok", "1"); } catch(_) {}
+  inicializarApp();
+}
+
+try {
+  if (sessionStorage.getItem("dehse_finanzas_ok") === "1") {
+    window.addEventListener("DOMContentLoaded", entrarApp);
+  }
+} catch(_) { /* si el navegador bloquea sessionStorage, simplemente pedirá el código cada vez */ }
+
+/* =============================================================
+   INICIALIZACIÓN
+   ============================================================= */
+async function inicializarApp(){
+  const selMes = document.getElementById("selMes");
+  selMes.innerHTML = NOMBRES_MES.map((n, i) => `<option value="${i+1}">${n}</option>`).join("");
+  const hoy = new Date();
+  selMes.value = hoy.getMonth() + 1;
+  document.getElementById("selAnio").value = hoy.getFullYear();
+  document.getElementById("ventaFecha").value = isoHoy();
+  document.getElementById("gastoFecha").value = isoHoy();
+
+  await cargarCosteo();
+  await cargarProductos();
+  poblarCategoriasVenta();
+  cargarRegistrosRecientes();
+}
+
+function isoHoy(){
+  const d = new Date();
+  return d.toISOString().substring(0, 10);
+}
+
+async function cargarProductos(){
+  try {
+    const res = await fetch(`${CONFIG.appsScriptUrl}?accion=productos`);
+    PRODUCTOS = await res.json();
+  } catch (err) {
+    console.error("No se pudieron cargar los productos", err);
+    PRODUCTOS = [];
+  }
+}
+
+/* =============================================================
+   TABS
+   ============================================================= */
+function cambiarTab(id){
+  document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("activo", b.dataset.tab === id));
+  document.querySelectorAll(".tab-panel").forEach(p => p.classList.toggle("activo", p.id === id));
+}
+
+/* =============================================================
+   COSTEO Y PRECIOS
+   ============================================================= */
+function actualizarPreviewCosteo(){
+  const cm  = Number(document.getElementById("costeoCostoMateriales").value) || 0;
+  const cmo = Number(document.getElementById("costeoCostoManoObra").value) || 0;
+  const oc  = Number(document.getElementById("costeoOtrosCostos").value) || 0;
+  const pv  = Number(document.getElementById("costeoPrecioVenta").value) || 0;
+
+  const costoTotal = cm + cmo + oc;
+  const margenSoles = pv - costoTotal;
+  const margenPct = pv > 0 ? (margenSoles / pv) * 100 : 0;
+
+  document.getElementById("previewCostoTotal").textContent = `S/ ${costoTotal.toFixed(2)}`;
+  document.getElementById("previewMargenSoles").textContent = `S/ ${margenSoles.toFixed(2)}`;
+  document.getElementById("previewMargenPct").textContent = `${margenPct.toFixed(1)}%`;
+
+  const cajaSoles = document.getElementById("cajaMargenSoles");
+  const cajaPct = document.getElementById("cajaMargenPct");
+  cajaSoles.classList.remove("bueno", "malo");
+  cajaPct.classList.remove("bueno", "malo");
+  if (pv > 0) {
+    cajaSoles.classList.add(margenSoles >= 0 ? "bueno" : "malo");
+    cajaPct.classList.add(margenSoles >= 0 ? "bueno" : "malo");
+  }
+}
+
+async function cargarCosteo(){
+  try {
+    const res = await fetch(`${CONFIG.appsScriptUrl}?accion=costeo`);
+    COSTEO_LISTA = await res.json();
+  } catch (err) {
+    console.error("No se pudo cargar el costeo", err);
+    COSTEO_LISTA = [];
+  }
+  poblarCategoriasSugeridas();
+  renderTablaCosteo();
+}
+
+function poblarCategoriasSugeridas(){
+  const categorias = [...new Set(COSTEO_LISTA.map(c => c.category))];
+  document.getElementById("sugerenciasCategoriaCosteo").innerHTML =
+    categorias.map(c => `<option value="${escapeHtml(c)}">`).join("");
+}
+
+function renderTablaCosteo(){
+  const cont = document.getElementById("tablaCosteo");
+  if (!COSTEO_LISTA.length) {
+    cont.innerHTML = `<div class="estado-vacio">Aún no has agregado ningún modelo. Usa el formulario de arriba.</div>`;
+    return;
+  }
+  cont.innerHTML = `<table class="registros">
+    <thead><tr>
+      <th>Modelo</th><th>Categoría</th>
+      <th style="text-align:right;">Costo</th>
+      <th style="text-align:right;">Precio</th>
+      <th style="text-align:right;">Margen</th>
+      <th class="no-print"></th>
+    </tr></thead>
+    <tbody>${COSTEO_LISTA.map(c => `
+      <tr>
+        <td>${escapeHtml(c.name)}</td>
+        <td>${escapeHtml(c.category)}</td>
+        <td class="num">S/ ${c.costoTotal.toFixed(2)}</td>
+        <td class="num">S/ ${c.precioVenta.toFixed(2)}</td>
+        <td class="num">${pillMargen(c.margenPorcentaje)}</td>
+        <td class="no-print" style="white-space:nowrap;">
+          <button class="btn-texto" onclick="editarCosteo('${c.id}')">Editar</button>
+          <button class="btn-texto peligro" onclick="borrarCosteo('${c.id}','${escapeHtml(c.name)}')">Eliminar</button>
+        </td>
+      </tr>`).join("")}
+    </tbody></table>`;
+}
+
+function pillMargen(pct){
+  let clase = "malo";
+  if (pct >= 30) clase = "bueno";
+  else if (pct >= 10) clase = "regular";
+  return `<span class="pill ${clase}">${pct.toFixed(1)}%</span>`;
+}
+
+function editarCosteo(id){
+  const c = COSTEO_LISTA.find(x => String(x.id) === String(id));
+  if (!c) return;
+  document.getElementById("tituloFormCosteo").textContent = `Editando: ${c.name}`;
+  document.getElementById("costeoId").value = c.id;
+  document.getElementById("costeoNombre").value = c.name;
+  document.getElementById("costeoCategoria").value = c.category;
+  document.getElementById("costeoCostoMateriales").value = c.costoMateriales;
+  document.getElementById("costeoCostoManoObra").value = c.costoManoObra;
+  document.getElementById("costeoOtrosCostos").value = c.otrosCostos;
+  document.getElementById("costeoPrecioVenta").value = c.precioVenta;
+  document.getElementById("btnCancelarEdicionCosteo").style.display = "inline-block";
+  actualizarPreviewCosteo();
+  document.getElementById("tabCosteo").scrollIntoView({ behavior:"smooth", block:"start" });
+}
+
+function cancelarEdicionCosteo(){
+  document.getElementById("tituloFormCosteo").textContent = "Nuevo modelo";
+  document.getElementById("costeoId").value = "";
+  document.getElementById("costeoNombre").value = "";
+  document.getElementById("costeoCategoria").value = "";
+  document.getElementById("costeoCostoMateriales").value = 0;
+  document.getElementById("costeoCostoManoObra").value = 0;
+  document.getElementById("costeoOtrosCostos").value = 0;
+  document.getElementById("costeoPrecioVenta").value = 0;
+  document.getElementById("btnCancelarEdicionCosteo").style.display = "none";
+  document.getElementById("msgCosteo").innerHTML = "";
+  actualizarPreviewCosteo();
+}
+
+async function guardarCosteo(){
+  const msg = document.getElementById("msgCosteo");
+  const datos = {
+    id: document.getElementById("costeoId").value || undefined,
+    name: document.getElementById("costeoNombre").value.trim(),
+    category: document.getElementById("costeoCategoria").value.trim(),
+    costoMateriales: Number(document.getElementById("costeoCostoMateriales").value) || 0,
+    costoManoObra: Number(document.getElementById("costeoCostoManoObra").value) || 0,
+    otrosCostos: Number(document.getElementById("costeoOtrosCostos").value) || 0,
+    precioVenta: Number(document.getElementById("costeoPrecioVenta").value) || 0
+  };
+
+  if (!datos.name || !datos.category) {
+    msg.innerHTML = `<div class="msg-error">Completa el nombre del modelo y la categoría.</div>`;
+    return;
+  }
+
+  msg.innerHTML = `<div class="estado-carga" style="padding:10px 0;">Guardando…</div>`;
+  try {
+    const res = await fetch(`${CONFIG.appsScriptUrl}?accion=guardarCosteo`, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(datos)
+    });
+    const data = await res.json();
+    if (data.status === "ok") {
+      msg.innerHTML = `<div class="msg-ok">✔ Modelo guardado. Margen: ${data.margenPorcentaje.toFixed(1)}%</div>`;
+      cancelarEdicionCosteo();
+      await cargarCosteo();
+      await cargarProductos();
+      poblarCategoriasVenta();
+    } else {
+      msg.innerHTML = `<div class="msg-error">${escapeHtml(data.mensaje || "No se pudo guardar")}</div>`;
+    }
+  } catch (err) {
+    msg.innerHTML = `<div class="msg-error">Error de conexión. Revisa CONFIG.appsScriptUrl.</div>`;
+    console.error(err);
+  }
+}
+
+async function borrarCosteo(id, nombre){
+  if (!confirm(`¿Eliminar "${nombre}" de tu lista de costeo?`)) return;
+  try {
+    const res = await fetch(`${CONFIG.appsScriptUrl}?accion=eliminarCosteo`, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ id })
+    });
+    const data = await res.json();
+    if (data.status === "ok") {
+      await cargarCosteo();
+      await cargarProductos();
+      poblarCategoriasVenta();
+    } else {
+      alert(data.mensaje || "No se pudo eliminar.");
+    }
+  } catch (err) {
+    alert("Error de conexión.");
+    console.error(err);
+  }
+}
+
+/* =============================================================
+   FORMULARIO: REGISTRAR VENTA
+   ============================================================= */
+function poblarCategoriasVenta(){
+  const categorias = [...new Set(PRODUCTOS.map(p => p.category))];
+  const sel = document.getElementById("ventaCategoria");
+  sel.innerHTML = categorias.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
+  actualizarModelosVenta();
+}
+
+function actualizarModelosVenta(){
+  const cat = document.getElementById("ventaCategoria").value;
+  const modelos = PRODUCTOS.filter(p => p.category === cat);
+  const sel = document.getElementById("ventaModelo");
+  sel.innerHTML = modelos.map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`).join("");
+  autocompletarPrecioVenta();
+}
+
+function autocompletarPrecioVenta(){
+  const id = document.getElementById("ventaModelo").value;
+  const producto = PRODUCTOS.find(p => p.id === id);
+  if (producto) {
+    document.getElementById("ventaPrecio").value = producto.price.toFixed(2);
+  }
+  calcularTotalVenta();
+}
+
+function calcularTotalVenta(){
+  const cantidad = Number(document.getElementById("ventaCantidad").value) || 0;
+  const precio   = Number(document.getElementById("ventaPrecio").value) || 0;
+  document.getElementById("ventaTotal").value = `S/ ${(cantidad * precio).toFixed(2)}`;
+}
+
+async function enviarVenta(){
+  const modeloId = document.getElementById("ventaModelo").value;
+  const producto = PRODUCTOS.find(p => p.id === modeloId);
+  const msg = document.getElementById("msgVenta");
+
+  const datos = {
+    fecha:          document.getElementById("ventaFecha").value,
+    categoria:      producto ? producto.category : document.getElementById("ventaCategoria").value,
+    nombre:         producto ? producto.name : "",
+    cantidad:       Number(document.getElementById("ventaCantidad").value) || 0,
+    precioUnitario: Number(document.getElementById("ventaPrecio").value) || 0
+  };
+
+  if (!datos.nombre || datos.cantidad <= 0) {
+    msg.innerHTML = `<div class="msg-error">Completa el modelo y una cantidad válida.</div>`;
+    return;
+  }
+
+  msg.innerHTML = `<div class="estado-carga" style="padding:10px 0;">Guardando…</div>`;
+  try {
+    const res = await fetch(`${CONFIG.appsScriptUrl}?accion=registrarVenta`, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" }, // evita preflight CORS con Apps Script
+      body: JSON.stringify(datos)
+    });
+    const data = await res.json();
+    if (data.status === "ok") {
+      msg.innerHTML = `<div class="msg-ok">✔ Venta registrada: S/ ${data.total.toFixed(2)}</div>`;
+      document.getElementById("ventaCantidad").value = 1;
+      calcularTotalVenta();
+      cargarRegistrosRecientes();
+    } else {
+      msg.innerHTML = `<div class="msg-error">${escapeHtml(data.mensaje || "No se pudo registrar")}</div>`;
+    }
+  } catch (err) {
+    msg.innerHTML = `<div class="msg-error">Error de conexión. Revisa CONFIG.appsScriptUrl.</div>`;
+    console.error(err);
+  }
+}
+
+/* =============================================================
+   FORMULARIO: REGISTRAR GASTO
+   ============================================================= */
+async function enviarGasto(){
+  const msg = document.getElementById("msgGasto");
+  const datos = {
+    fecha:       document.getElementById("gastoFecha").value,
+    tipo:        document.getElementById("gastoTipo").value,
+    categoria:   document.getElementById("gastoCategoria").value.trim(),
+    descripcion: document.getElementById("gastoDescripcion").value.trim(),
+    monto:       Number(document.getElementById("gastoMonto").value) || 0
+  };
+
+  if (!datos.categoria || datos.monto <= 0) {
+    msg.innerHTML = `<div class="msg-error">Completa la categoría y un monto válido.</div>`;
+    return;
+  }
+
+  msg.innerHTML = `<div class="estado-carga" style="padding:10px 0;">Guardando…</div>`;
+  try {
+    const res = await fetch(`${CONFIG.appsScriptUrl}?accion=registrarGasto`, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(datos)
+    });
+    const data = await res.json();
+    if (data.status === "ok") {
+      msg.innerHTML = `<div class="msg-ok">✔ Gasto registrado</div>`;
+      document.getElementById("gastoCategoria").value = "";
+      document.getElementById("gastoDescripcion").value = "";
+      document.getElementById("gastoMonto").value = "";
+      cargarRegistrosRecientes();
+    } else {
+      msg.innerHTML = `<div class="msg-error">${escapeHtml(data.mensaje || "No se pudo registrar")}</div>`;
+    }
+  } catch (err) {
+    msg.innerHTML = `<div class="msg-error">Error de conexión. Revisa CONFIG.appsScriptUrl.</div>`;
+    console.error(err);
+  }
+}
+
+/* =============================================================
+   TABLAS DE REGISTROS RECIENTES (mes actual, para confirmar)
+   ============================================================= */
+async function cargarRegistrosRecientes(){
+  const hoy = new Date();
+  const mes = hoy.getMonth() + 1;
+  const anio = hoy.getFullYear();
+
+  try {
+    const [resV, resG] = await Promise.all([
+      fetch(`${CONFIG.appsScriptUrl}?accion=ventas&mes=${mes}&anio=${anio}`),
+      fetch(`${CONFIG.appsScriptUrl}?accion=gastos&mes=${mes}&anio=${anio}`)
+    ]);
+    const ventas = await resV.json();
+    const gastos = await resG.json();
+    renderTablaVentas(ventas);
+    renderTablaGastos(gastos);
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+function renderTablaVentas(ventas){
+  const cont = document.getElementById("tablaVentasRecientes");
+  if (!ventas.length) { cont.innerHTML = `<div class="estado-vacio">Aún no hay ventas este mes.</div>`; return; }
+  cont.innerHTML = `<table class="registros">
+    <thead><tr><th>Fecha</th><th>Modelo</th><th>Cant.</th><th style="text-align:right;">P. Unit.</th><th style="text-align:right;">Total</th></tr></thead>
+    <tbody>${ventas.map(v => `
+      <tr>
+        <td>${v.fecha}</td>
+        <td>${escapeHtml(v.nombre)}</td>
+        <td class="num">${v.cantidad}</td>
+        <td class="num">S/ ${v.precioUnitario.toFixed(2)}</td>
+        <td class="num">S/ ${v.total.toFixed(2)}</td>
+      </tr>`).join("")}
+    </tbody></table>`;
+}
+
+function renderTablaGastos(gastos){
+  const cont = document.getElementById("tablaGastosRecientes");
+  if (!gastos.length) { cont.innerHTML = `<div class="estado-vacio">Aún no hay gastos este mes.</div>`; return; }
+  cont.innerHTML = `<table class="registros">
+    <thead><tr><th>Fecha</th><th>Tipo</th><th>Categoría</th><th style="text-align:right;">Monto</th></tr></thead>
+    <tbody>${gastos.map(g => `
+      <tr>
+        <td>${g.fecha}</td>
+        <td>${escapeHtml(g.tipo)}</td>
+        <td>${escapeHtml(g.categoria)}</td>
+        <td class="num">S/ ${g.monto.toFixed(2)}</td>
+      </tr>`).join("")}
+    </tbody></table>`;
+}
+
+/* =============================================================
+   ESTADO DE RESULTADOS
+   ============================================================= */
+let RESUMEN_ACTUAL = null;
+
+async function generarEstadoResultados(){
+  const mes  = document.getElementById("selMes").value;
+  const anio = document.getElementById("selAnio").value;
+  const cont = document.getElementById("contenidoEstado");
+  cont.innerHTML = `<div class="estado-carga">Calculando…</div>`;
+
+  try {
+    const res = await fetch(`${CONFIG.appsScriptUrl}?accion=resumenMensual&mes=${mes}&anio=${anio}`);
+    RESUMEN_ACTUAL = await res.json();
+    renderEstadoResultados();
+  } catch (err) {
+    cont.innerHTML = `<div class="msg-error">No se pudo conectar con tu Google Sheet. Revisa CONFIG.appsScriptUrl.</div>`;
+    console.error(err);
+  }
+}
+
+function renderEstadoResultados(){
+  const r = RESUMEN_ACTUAL;
+  const cont = document.getElementById("contenidoEstado");
+
+  if (r.ventasNetas === 0 && r.gastosPorTipo.administrativo === 0 &&
+      r.gastosPorTipo.venta === 0 && r.gastosPorTipo.financiero === 0 && r.gastosPorTipo.otro === 0) {
+    cont.innerHTML = `<div class="card"><div class="estado-vacio">
+      No hay ventas ni gastos registrados para ${NOMBRES_MES[r.mes-1]} ${r.anio}.<br>
+      Usa las pestañas "Registrar venta" y "Registrar gasto" para empezar a cargar datos.
+    </div></div>`;
+    return;
+  }
+
+  cont.innerHTML = `
+    <div id="bannerResultado"></div>
+    <div class="card">
+      <div class="estado-linea">
+        <span>Ventas netas</span>
+        <span class="val">S/ ${r.ventasNetas.toFixed(2)}</span>
+      </div>
+      <div class="estado-linea resta">
+        <span>(-) Costo de ventas</span>
+        <span class="val">S/ ${r.costoVentas.toFixed(2)}</span>
+      </div>
+      <div class="estado-linea subtotal">
+        <span>= Utilidad bruta</span>
+        <span class="val" id="valUtilidadBruta"></span>
+      </div>
+
+      <div class="estado-linea resta" style="margin-top:14px;">
+        <span>(-) Gastos de venta / marketing</span>
+        <span class="val">S/ ${r.gastosPorTipo.venta.toFixed(2)}</span>
+      </div>
+      <div class="estado-linea resta">
+        <span>(-) Gastos administrativos</span>
+        <span class="val">S/ ${r.gastosPorTipo.administrativo.toFixed(2)}</span>
+      </div>
+      <div class="estado-linea resta">
+        <span>(-) Otros gastos operativos</span>
+        <span class="val">S/ ${r.gastosPorTipo.otro.toFixed(2)}</span>
+      </div>
+      <div class="estado-linea subtotal">
+        <span>= Utilidad operativa</span>
+        <span class="val" id="valUtilidadOperativa"></span>
+      </div>
+
+      <div class="estado-linea resta" style="margin-top:14px;">
+        <span>(-) Gastos financieros</span>
+        <span class="val">S/ ${r.gastosPorTipo.financiero.toFixed(2)}</span>
+      </div>
+      <div class="estado-linea subtotal">
+        <span>= Utilidad antes de impuestos</span>
+        <span class="val" id="valUtilidadAntesImp"></span>
+      </div>
+
+      <div class="estado-linea editable no-print">
+        <span class="etiqueta">Impuesto a la renta
+          <small>Ajusta el % según tu régimen tributario (RUS, RER, MYPE Tributario, etc.)</small>
+        </span>
+        <span><input type="number" id="pctImpuesto" value="0" min="0" max="100" step="0.5" oninput="recalcularFinal()"> %</span>
+      </div>
+      <div class="estado-linea resta">
+        <span>(-) Impuesto a la renta</span>
+        <span class="val" id="valImpuesto"></span>
+      </div>
+      <div class="estado-linea subtotal">
+        <span>= Utilidad neta</span>
+        <span class="val" id="valUtilidadNeta"></span>
+      </div>
+
+      <div class="estado-linea editable no-print">
+        <span class="etiqueta">Otros resultados integrales (ORI)
+          <small>Ajustes que no vienen de operaciones normales (revaluaciones, diferencias de cambio, etc.). Déjalo en 0 si no aplica.</small>
+        </span>
+        <span><input type="number" id="valORI" value="0" step="0.01" oninput="recalcularFinal()"> S/</span>
+      </div>
+      <div class="estado-linea subtotal" style="border-bottom:3px double var(--ink);">
+        <span>= RESULTADO INTEGRAL TOTAL</span>
+        <span class="val" id="valResultadoIntegral"></span>
+      </div>
+
+      ${r.ventasSinCosteo.length > 0 ? `
+        <div class="alerta-costeo">
+          ⚠️ <strong>Estos modelos vendidos no tienen datos en tu pestaña "Costeo y Precios"</strong>
+          (su costo se contó como S/ 0, así que la utilidad real es más baja de lo que se ve aquí):
+          ${r.ventasSinCosteo.map(escapeHtml).join(", ")}.
+          Ve a la pestaña 🧮 Costeo y Precios y agrégalos.
+        </div>
+      ` : ""}
+    </div>
+  `;
+
+  recalcularFinal();
+}
+
+function recalcularFinal(){
+  const r = RESUMEN_ACTUAL;
+  const utilidadBruta     = r.ventasNetas - r.costoVentas;
+  const utilidadOperativa = utilidadBruta - r.gastosPorTipo.venta - r.gastosPorTipo.administrativo - r.gastosPorTipo.otro;
+  const utilidadAntesImp  = utilidadOperativa - r.gastosPorTipo.financiero;
+
+  const pctImpuesto = Number(document.getElementById("pctImpuesto").value) || 0;
+  const impuesto    = utilidadAntesImp > 0 ? utilidadAntesImp * (pctImpuesto / 100) : 0;
+  const utilidadNeta = utilidadAntesImp - impuesto;
+
+  const ori = Number(document.getElementById("valORI").value) || 0;
+  const resultadoIntegral = utilidadNeta + ori;
+
+  document.getElementById("valUtilidadBruta").textContent      = `S/ ${utilidadBruta.toFixed(2)}`;
+  document.getElementById("valUtilidadOperativa").textContent  = `S/ ${utilidadOperativa.toFixed(2)}`;
+  document.getElementById("valUtilidadAntesImp").textContent   = `S/ ${utilidadAntesImp.toFixed(2)}`;
+  document.getElementById("valImpuesto").textContent           = `S/ ${impuesto.toFixed(2)}`;
+  document.getElementById("valUtilidadNeta").textContent       = `S/ ${utilidadNeta.toFixed(2)}`;
+  document.getElementById("valResultadoIntegral").textContent  = `S/ ${resultadoIntegral.toFixed(2)}`;
+
+  const banner = document.getElementById("bannerResultado");
+  if (resultadoIntegral >= 0) {
+    banner.innerHTML = `<div class="banner-resultado ganancia">
+      <div class="icono">🟢</div>
+      <div class="texto">
+        <div class="titulo">${NOMBRES_MES[r.mes-1]} ${r.anio} — Tu empresa GANÓ</div>
+        <div class="cifra">S/ ${resultadoIntegral.toFixed(2)}</div>
+      </div>
+    </div>`;
+  } else {
+    banner.innerHTML = `<div class="banner-resultado perdida">
+      <div class="icono">🔴</div>
+      <div class="texto">
+        <div class="titulo">${NOMBRES_MES[r.mes-1]} ${r.anio} — Tu empresa PERDIÓ</div>
+        <div class="cifra">S/ ${Math.abs(resultadoIntegral).toFixed(2)}</div>
+      </div>
+    </div>`;
+  }
+}
+
+/* =============================================================
+   HELPERS
+   ============================================================= */
+function escapeHtml(str){
+  return String(str || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+</script>
+</body>
+</html>
