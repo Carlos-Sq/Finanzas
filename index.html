@@ -160,6 +160,19 @@
 
   .estado-carga, .estado-vacio{text-align:center; padding:50px 20px; color:var(--gray); font-size:14px;}
 
+  /* Dashboard */
+  .kpi-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:20px;}
+  @media (max-width:860px){ .kpi-grid{grid-template-columns:repeat(2,1fr);} }
+  @media (max-width:480px){ .kpi-grid{grid-template-columns:1fr;} }
+  .kpi-caja{background:#fff; border:1px solid var(--line); border-radius:14px; padding:16px 18px; box-shadow:var(--shadow);}
+  .kpi-caja .etq{font-size:11px; color:var(--gray); text-transform:uppercase; letter-spacing:0.03em; margin-bottom:6px;}
+  .kpi-caja .cif{font-size:20px; font-weight:800;}
+  .kpi-caja.bueno .cif{color:var(--green-deep);}
+  .kpi-caja.malo .cif{color:var(--red-deep);}
+  .grafico-caja{background:#fff; border:1px solid var(--line); border-radius:16px; padding:18px; box-shadow:var(--shadow); margin-bottom:20px;}
+  .grafico-caja h4{margin:0 0 14px; font-size:14px;}
+  .grafico-caja canvas{max-height:280px;}
+
   @media print{
     #gate, .tabs, header.top .tag, .no-print{display:none !important;}
     #app{display:block !important; max-width:100%; padding:0;}
@@ -193,7 +206,8 @@
     <button class="tab-btn" data-tab="tabGasto" onclick="cambiarTab('tabGasto')">🧾 Registrar gasto</button>
     <button class="tab-btn" data-tab="tabInventario" onclick="cambiarTab('tabInventario')">📦 Inventario</button>
     <button class="tab-btn" data-tab="tabResultados" onclick="cambiarTab('tabResultados')">📈 Estado de Resultados</button>
-    <button class="tab-btn" data-tab="tabBalance" onclick="cambiarTab('tabBalance')">🏦 Balance General</button>
+    <button class="tab-btn" data-tab="tabDashboard" onclick="cambiarTab('tabDashboard')">📊 Dashboard</button>
+    <button class="tab-btn" data-tab="tabReportes" onclick="cambiarTab('tabReportes')">🗂️ Reportes</button>
   </div>
 
   <!-- ───────── TAB: COSTEO Y PRECIOS ───────── -->
@@ -515,33 +529,89 @@
     </div>
   </div>
 
-  <!-- ───────── TAB: BALANCE GENERAL ───────── -->
-  <div class="tab-panel" id="tabBalance">
+  <!-- ───────── TAB: DASHBOARD ───────── -->
+  <div class="tab-panel" id="tabDashboard">
     <div class="card no-print">
-      <div class="subtitulo">Muestra el acumulado del año fiscal hasta el mes elegido (para la Utilidad del ejercicio) y las cuentas manuales guardadas más recientes (Caja, Cuentas por cobrar, Activos fijos, etc.). Esas cuentas se actualizan solas cuando construyamos Activos Fijos y Flujo de Caja.</div>
       <div class="selector-periodo">
         <div class="campo">
-          <label>Hasta el mes</label>
-          <select id="selMesBalance"></select>
+          <label>Mes</label>
+          <select id="dashMes"></select>
         </div>
         <div class="campo">
           <label>Año</label>
-          <input type="number" id="selAnioBalance" style="width:100px;">
+          <input type="number" id="dashAnio" style="width:100px;">
         </div>
-        <div class="campo">
-          <label>% Impuesto a la renta</label>
-          <input type="number" id="pctImpuestoBalance" value="0" min="0" max="100" step="0.5" style="width:100px;">
-        </div>
-        <button class="btn-primary" onclick="generarBalance()">Generar</button>
-        <button class="btn-secundario" onclick="window.print()">🖨️ Imprimir / PDF</button>
+        <button class="btn-primary" onclick="cargarDashboard()">Actualizar</button>
       </div>
     </div>
 
-    <div id="contenidoBalance">
-      <div class="estado-vacio">Elige el periodo y presiona "Generar" para ver el Estado de Situación Financiera.</div>
+    <div id="dashboardContenido">
+      <div class="estado-carga">Cargando indicadores…</div>
     </div>
   </div>
+
+  <!-- ───────── TAB: REPORTES ───────── -->
+  <div class="tab-panel" id="tabReportes">
+    <div class="card no-print">
+      <h3>🗂️ Exportar reportes</h3>
+      <div class="subtitulo">Elige el mes/año (aplica a Estado de Resultados y Flujo de Caja) y exporta cada reporte en PDF o Excel.</div>
+      <div class="selector-periodo">
+        <div class="campo">
+          <label>Mes</label>
+          <select id="repMes"></select>
+        </div>
+        <div class="campo">
+          <label>Año</label>
+          <input type="number" id="repAnio" style="width:100px;">
+        </div>
+      </div>
+    </div>
+
+    <div class="card no-print">
+      <h3>📈 Estado de Resultados</h3>
+      <div class="subtitulo">Ventas, costos, gastos y utilidad del mes elegido.</div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <button class="btn-secundario" onclick="exportarPDF('estadoResultados')">⬇️ Exportar PDF</button>
+        <button class="btn-secundario" onclick="exportarExcel('estadoResultados')">⬇️ Exportar Excel</button>
+      </div>
+    </div>
+
+    <div class="card no-print">
+      <h3>💵 Flujo de Caja</h3>
+      <div class="subtitulo">Aproximado: ingresos por ventas del mes menos egresos por gastos y lotes de producción pagados ese mes. No distingue ventas al crédito ni cuentas por cobrar/pagar.</div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <button class="btn-secundario" onclick="exportarPDF('flujoCaja')">⬇️ Exportar PDF</button>
+        <button class="btn-secundario" onclick="exportarExcel('flujoCaja')">⬇️ Exportar Excel</button>
+      </div>
+    </div>
+
+    <div class="card no-print">
+      <h3>📦 Inventarios</h3>
+      <div class="subtitulo">Stock actual valorizado por modelo (a la fecha de hoy, no depende del mes elegido).</div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <button class="btn-secundario" onclick="exportarPDF('inventarios')">⬇️ Exportar PDF</button>
+        <button class="btn-secundario" onclick="exportarExcel('inventarios')">⬇️ Exportar Excel</button>
+      </div>
+    </div>
+
+    <div class="card no-print">
+      <h3>🧮 Costeo</h3>
+      <div class="subtitulo">Costo, precio y margen de todos tus modelos (situación actual).</div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <button class="btn-secundario" onclick="exportarPDF('costeo')">⬇️ Exportar PDF</button>
+        <button class="btn-secundario" onclick="exportarExcel('costeo')">⬇️ Exportar Excel</button>
+      </div>
+    </div>
+
+    <div id="msgReportes"></div>
+  </div>
 </div>
+
+<!-- Librerías para gráficos interactivos y exportación de reportes -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
 <script>
 /* =============================================================
@@ -601,14 +671,18 @@ async function inicializarApp(){
   const hoy = new Date();
   selMes.value = hoy.getMonth() + 1;
   document.getElementById("selAnio").value = hoy.getFullYear();
-
-  const selMesBalance = document.getElementById("selMesBalance");
-  selMesBalance.innerHTML = NOMBRES_MES.map((n, i) => `<option value="${i+1}">${n}</option>`).join("");
-  selMesBalance.value = hoy.getMonth() + 1;
-  document.getElementById("selAnioBalance").value = hoy.getFullYear();
-
   document.getElementById("ventaFecha").value = isoHoy();
   document.getElementById("gastoFecha").value = isoHoy();
+
+  const dashMes = document.getElementById("dashMes");
+  dashMes.innerHTML = NOMBRES_MES.map((n, i) => `<option value="${i+1}">${n}</option>`).join("");
+  dashMes.value = hoy.getMonth() + 1;
+  document.getElementById("dashAnio").value = hoy.getFullYear();
+
+  const repMes = document.getElementById("repMes");
+  repMes.innerHTML = NOMBRES_MES.map((n, i) => `<option value="${i+1}">${n}</option>`).join("");
+  repMes.value = hoy.getMonth() + 1;
+  document.getElementById("repAnio").value = hoy.getFullYear();
 
   await cargarCosteo();
   await cargarProductos();
@@ -641,9 +715,15 @@ async function cargarProductos(){
 /* =============================================================
    TABS
    ============================================================= */
+let DASHBOARD_CARGADO = false;
+
 function cambiarTab(id){
   document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("activo", b.dataset.tab === id));
   document.querySelectorAll(".tab-panel").forEach(p => p.classList.toggle("activo", p.id === id));
+  if (id === "tabDashboard" && !DASHBOARD_CARGADO) {
+    DASHBOARD_CARGADO = true;
+    cargarDashboard();
+  }
 }
 
 /* =============================================================
@@ -1271,6 +1351,305 @@ function recalcularFinal(){
 }
 
 /* =============================================================
+   DASHBOARD
+   ============================================================= */
+let GRAFICOS_DASH = {};
+
+function destruirGrafico(nombre){
+  if (GRAFICOS_DASH[nombre]) { GRAFICOS_DASH[nombre].destroy(); delete GRAFICOS_DASH[nombre]; }
+}
+
+// Trae ventas, gastos y lotes de un mes puntual (para el dashboard y los reportes)
+async function obtenerDatosDelMes(mes, anio){
+  const [resV, resG] = await Promise.all([
+    fetch(`${CONFIG.appsScriptUrl}?accion=ventas&mes=${mes}&anio=${anio}`),
+    fetch(`${CONFIG.appsScriptUrl}?accion=gastos&mes=${mes}&anio=${anio}`)
+  ]);
+  const ventas = await resV.json();
+  const gastos = await resG.json();
+  const lotes = LOTES_LISTA.filter(l => {
+    const f = new Date(l.fecha + "T00:00:00");
+    return (f.getMonth() + 1) === Number(mes) && f.getFullYear() === Number(anio);
+  });
+  return { ventas, gastos, lotes };
+}
+
+function calcularFlujoCaja(ventas, gastos, lotes){
+  const ingresos = ventas.reduce((s, v) => s + v.total, 0);
+  const egresosGastos = gastos.reduce((s, g) => s + g.monto, 0);
+  const egresosLotes = lotes.reduce((s, l) => s + l.costoTotalLote, 0);
+  const egresosPorCategoriaGasto = {};
+  gastos.forEach(g => { egresosPorCategoriaGasto[g.tipo] = (egresosPorCategoriaGasto[g.tipo] || 0) + g.monto; });
+  return {
+    ingresos, egresosGastos, egresosLotes,
+    egresosTotal: egresosGastos + egresosLotes,
+    saldoNeto: ingresos - egresosGastos - egresosLotes,
+    egresosPorCategoriaGasto
+  };
+}
+
+async function cargarDashboard(){
+  const cont = document.getElementById("dashboardContenido");
+  const mes = document.getElementById("dashMes").value;
+  const anio = document.getElementById("dashAnio").value;
+  cont.innerHTML = `<div class="estado-carga">Calculando indicadores…</div>`;
+
+  try {
+    const [resResumen, resInv, datosMes] = await Promise.all([
+      fetch(`${CONFIG.appsScriptUrl}?accion=resumenMensual&mes=${mes}&anio=${anio}`).then(r => r.json()),
+      fetch(`${CONFIG.appsScriptUrl}?accion=inventario`).then(r => r.json()),
+      obtenerDatosDelMes(mes, anio)
+    ]);
+
+    const r = resResumen;
+    const { ventas, gastos, lotes } = datosMes;
+    const inventario = Array.isArray(resInv) ? resInv : [];
+
+    const utilidadBruta     = r.ventasNetas - r.costoVentas;
+    const utilidadOperativa = utilidadBruta - r.gastosPorTipo.venta - r.gastosPorTipo.administrativo - r.gastosPorTipo.otro;
+    const utilidadAntesImp  = utilidadOperativa - r.gastosPorTipo.financiero;
+    const margenBruto = r.ventasNetas > 0 ? (utilidadBruta / r.ventasNetas) * 100 : 0;
+    const margenNeto  = r.ventasNetas > 0 ? (utilidadAntesImp / r.ventasNetas) * 100 : 0;
+
+    const inventarioValorizado = inventario.reduce((s, m) => s + (m.valorTotal || 0), 0);
+    const stockBajo = inventario.filter(m => m.stockBajo);
+
+    const flujo = calcularFlujoCaja(ventas, gastos, lotes);
+
+    // Productos más vendidos (por cantidad) este mes
+    const porModelo = {};
+    ventas.forEach(v => { porModelo[v.nombre] = (porModelo[v.nombre] || 0) + v.cantidad; });
+    const masVendidos = Object.entries(porModelo).sort((a, b) => b[1] - a[1]).slice(0, 6);
+
+    // Gastos por categoría (tipo) este mes
+    const gastosPorTipo = r.gastosPorTipo;
+
+    cont.innerHTML = `
+      <div class="kpi-grid">
+        <div class="kpi-caja"><div class="etq">Ventas del mes</div><div class="cif">S/ ${r.ventasNetas.toFixed(2)}</div></div>
+        <div class="kpi-caja ${utilidadAntesImp >= 0 ? 'bueno' : 'malo'}"><div class="etq">Utilidad del mes</div><div class="cif">S/ ${utilidadAntesImp.toFixed(2)}</div></div>
+        <div class="kpi-caja ${margenBruto >= 0 ? 'bueno' : 'malo'}"><div class="etq">Margen bruto</div><div class="cif">${margenBruto.toFixed(1)}%</div></div>
+        <div class="kpi-caja ${margenNeto >= 0 ? 'bueno' : 'malo'}"><div class="etq">Margen neto</div><div class="cif">${margenNeto.toFixed(1)}%</div></div>
+        <div class="kpi-caja"><div class="etq">Inventario valorizado</div><div class="cif">S/ ${inventarioValorizado.toFixed(2)}</div></div>
+        <div class="kpi-caja ${flujo.saldoNeto >= 0 ? 'bueno' : 'malo'}"><div class="etq">Flujo de caja del mes</div><div class="cif">S/ ${flujo.saldoNeto.toFixed(2)}</div></div>
+        <div class="kpi-caja ${stockBajo.length > 0 ? 'malo' : 'bueno'}"><div class="etq">Modelos con stock bajo</div><div class="cif">${stockBajo.length}</div></div>
+        <div class="kpi-caja"><div class="etq">Modelos vendidos este mes</div><div class="cif">${masVendidos.length}</div></div>
+      </div>
+
+      <div class="grafico-caja">
+        <h4>Ventas y utilidad — últimos 6 meses</h4>
+        <canvas id="graficoTendencia"></canvas>
+      </div>
+
+      <div class="grafico-caja">
+        <h4>Gastos por categoría — ${NOMBRES_MES[r.mes-1]} ${r.anio}</h4>
+        <canvas id="graficoGastos"></canvas>
+      </div>
+
+      <div class="grafico-caja">
+        <h4>Productos más vendidos — ${NOMBRES_MES[r.mes-1]} ${r.anio}</h4>
+        <canvas id="graficoMasVendidos"></canvas>
+      </div>
+
+      <div class="grafico-caja">
+        <h4>Rentabilidad por modelo (margen %)</h4>
+        <canvas id="graficoRentabilidad"></canvas>
+      </div>
+
+      ${stockBajo.length > 0 ? `
+        <div class="card">
+          <h3>⚠️ Modelos con stock bajo</h3>
+          <div id="tablaStockBajoDash"></div>
+        </div>
+      ` : ""}
+    `;
+
+    if (stockBajo.length > 0) {
+      document.getElementById("tablaStockBajoDash").innerHTML = `<table class="registros">
+        <thead><tr><th>Modelo</th><th>Categoría</th><th style="text-align:right;">Stock actual</th></tr></thead>
+        <tbody>${stockBajo.map(m => `<tr><td>${escapeHtml(m.modelo)}</td><td>${escapeHtml(m.categoria)}</td><td class="num">${m.stockActual}</td></tr>`).join("")}</tbody>
+      </table>`;
+    }
+
+    await construirGraficoTendencia(mes, anio);
+    construirGraficoDoughnut("graficoGastos", ["Administrativo","Venta","Financiero","Otro"],
+      [gastosPorTipo.administrativo, gastosPorTipo.venta, gastosPorTipo.financiero, gastosPorTipo.otro]);
+    construirGraficoBarras("graficoMasVendidos", masVendidos.map(x => x[0]), masVendidos.map(x => x[1]), "Unidades vendidas", false);
+    construirGraficoBarras("graficoRentabilidad", COSTEO_LISTA.map(c => c.name), COSTEO_LISTA.map(c => c.margenPorcentaje), "Margen %", true);
+
+  } catch (err) {
+    cont.innerHTML = `<div class="msg-error">No se pudo calcular el dashboard. Revisa CONFIG.appsScriptUrl.</div>`;
+    console.error(err);
+  }
+}
+
+async function construirGraficoTendencia(mesActual, anioActual){
+  const meses = [];
+  let m = Number(mesActual), a = Number(anioActual);
+  for (let i = 5; i >= 0; i--){
+    let mm = m - i, aa = a;
+    while (mm <= 0) { mm += 12; aa -= 1; }
+    meses.push({ mes: mm, anio: aa });
+  }
+  const resultados = await Promise.all(meses.map(({mes, anio}) =>
+    fetch(`${CONFIG.appsScriptUrl}?accion=resumenMensual&mes=${mes}&anio=${anio}`).then(r => r.json())
+  ));
+  const etiquetas = meses.map(({mes, anio}) => `${NOMBRES_MES[mes-1].slice(0,3)} ${anio}`);
+  const ventas = resultados.map(r => r.ventasNetas);
+  const utilidades = resultados.map(r => {
+    const ub = r.ventasNetas - r.costoVentas;
+    const uo = ub - r.gastosPorTipo.venta - r.gastosPorTipo.administrativo - r.gastosPorTipo.otro;
+    return uo - r.gastosPorTipo.financiero;
+  });
+
+  destruirGrafico("tendencia");
+  const ctx = document.getElementById("graficoTendencia");
+  if (!ctx) return;
+  GRAFICOS_DASH.tendencia = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: etiquetas,
+      datasets: [
+        { label: "Ventas", data: ventas, borderColor: "#C0392B", backgroundColor: "rgba(192,57,43,0.15)", tension: 0.25, fill: true },
+        { label: "Utilidad", data: utilidades, borderColor: "#2E7D4F", backgroundColor: "rgba(46,125,79,0.15)", tension: 0.25, fill: true }
+      ]
+    },
+    options: { responsive: true, plugins: { legend: { position: "bottom" } } }
+  });
+}
+
+function construirGraficoDoughnut(id, etiquetas, valores){
+  destruirGrafico(id);
+  const ctx = document.getElementById(id);
+  if (!ctx) return;
+  GRAFICOS_DASH[id] = new Chart(ctx, {
+    type: "doughnut",
+    data: { labels: etiquetas, datasets: [{ data: valores, backgroundColor: ["#C0392B","#C89B3C","#2E7D4F","#7A7168"] }] },
+    options: { responsive: true, plugins: { legend: { position: "bottom" } } }
+  });
+}
+
+function construirGraficoBarras(id, etiquetas, valores, etiquetaSerie, colorPorSigno){
+  destruirGrafico(id);
+  const ctx = document.getElementById(id);
+  if (!ctx) return;
+  const colores = colorPorSigno ? valores.map(v => v >= 0 ? "#2E7D4F" : "#C0392B") : "#C0392B";
+  GRAFICOS_DASH[id] = new Chart(ctx, {
+    type: "bar",
+    data: { labels: etiquetas, datasets: [{ label: etiquetaSerie, data: valores, backgroundColor: colores }] },
+    options: { responsive: true, indexAxis: "y", plugins: { legend: { display: false } } }
+  });
+}
+
+/* =============================================================
+   REPORTES (exportar PDF / Excel)
+   ============================================================= */
+async function obtenerDatosReporte(tipo){
+  const mes = document.getElementById("repMes").value;
+  const anio = document.getElementById("repAnio").value;
+
+  if (tipo === "estadoResultados") {
+    const r = await fetch(`${CONFIG.appsScriptUrl}?accion=resumenMensual&mes=${mes}&anio=${anio}`).then(x => x.json());
+    const utilidadBruta     = r.ventasNetas - r.costoVentas;
+    const utilidadOperativa = utilidadBruta - r.gastosPorTipo.venta - r.gastosPorTipo.administrativo - r.gastosPorTipo.otro;
+    const utilidadAntesImp  = utilidadOperativa - r.gastosPorTipo.financiero;
+    return {
+      titulo: `Estado de Resultados — ${NOMBRES_MES[r.mes-1]} ${r.anio}`,
+      columnas: ["Concepto", "Monto (S/)"],
+      filas: [
+        ["Ventas netas", r.ventasNetas.toFixed(2)],
+        ["(-) Costo de ventas", r.costoVentas.toFixed(2)],
+        ["= Utilidad bruta", utilidadBruta.toFixed(2)],
+        ["(-) Gastos de venta / marketing", r.gastosPorTipo.venta.toFixed(2)],
+        ["(-) Gastos administrativos", r.gastosPorTipo.administrativo.toFixed(2)],
+        ["(-) Otros gastos operativos", r.gastosPorTipo.otro.toFixed(2)],
+        ["= Utilidad operativa", utilidadOperativa.toFixed(2)],
+        ["(-) Gastos financieros", r.gastosPorTipo.financiero.toFixed(2)],
+        ["= Utilidad antes de impuestos", utilidadAntesImp.toFixed(2)]
+      ]
+    };
+  }
+
+  if (tipo === "flujoCaja") {
+    const { ventas, gastos, lotes } = await obtenerDatosDelMes(mes, anio);
+    const f = calcularFlujoCaja(ventas, gastos, lotes);
+    return {
+      titulo: `Flujo de Caja (aproximado) — ${NOMBRES_MES[mes-1]} ${anio}`,
+      columnas: ["Concepto", "Monto (S/)"],
+      filas: [
+        ["Ingresos por ventas", f.ingresos.toFixed(2)],
+        ["(-) Egresos por gastos", f.egresosGastos.toFixed(2)],
+        ["(-) Egresos por lotes de producción", f.egresosLotes.toFixed(2)],
+        ["= Saldo neto del mes", f.saldoNeto.toFixed(2)]
+      ]
+    };
+  }
+
+  if (tipo === "inventarios") {
+    const inv = await fetch(`${CONFIG.appsScriptUrl}?accion=inventario`).then(x => x.json());
+    const total = inv.reduce((s, m) => s + (m.valorTotal || 0), 0);
+    return {
+      titulo: "Inventarios (a la fecha de hoy)",
+      columnas: ["Modelo", "Categoría", "Stock", "Costo promedio (S/)", "Valor total (S/)"],
+      filas: [
+        ...inv.map(m => [m.modelo, m.categoria, m.stockActual, m.costoPromedio.toFixed(2), m.valorTotal.toFixed(2)]),
+        ["", "", "", "TOTAL", total.toFixed(2)]
+      ]
+    };
+  }
+
+  if (tipo === "costeo") {
+    return {
+      titulo: "Costeo y Precios (situación actual)",
+      columnas: ["Modelo", "Categoría", "Costo (S/)", "Precio (S/)", "Margen (S/)", "Margen (%)"],
+      filas: COSTEO_LISTA.map(c => [c.name, c.category, c.costoTotal.toFixed(2), c.precioVenta.toFixed(2), c.margenSoles.toFixed(2), c.margenPorcentaje.toFixed(1) + "%"])
+    };
+  }
+}
+
+async function exportarPDF(tipo){
+  const msg = document.getElementById("msgReportes");
+  msg.innerHTML = `<div class="estado-carga" style="padding:10px 0;">Generando PDF…</div>`;
+  try {
+    const { titulo, columnas, filas } = await obtenerDatosReporte(tipo);
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    doc.setFontSize(14);
+    doc.text("DEHSE — Finanzas", 14, 16);
+    doc.setFontSize(11);
+    doc.text(titulo, 14, 24);
+    doc.autoTable({
+      head: [columnas],
+      body: filas,
+      startY: 30,
+      styles: { fontSize: 9 },
+      headStyles: { fillColor: [192, 57, 43] }
+    });
+    doc.save(`${tipo}_${document.getElementById("repMes").value}_${document.getElementById("repAnio").value}.pdf`);
+    msg.innerHTML = `<div class="msg-ok">✔ PDF descargado.</div>`;
+  } catch (err) {
+    msg.innerHTML = `<div class="msg-error">No se pudo generar el PDF.</div>`;
+    console.error(err);
+  }
+}
+
+async function exportarExcel(tipo){
+  const msg = document.getElementById("msgReportes");
+  msg.innerHTML = `<div class="estado-carga" style="padding:10px 0;">Generando Excel…</div>`;
+  try {
+    const { titulo, columnas, filas } = await obtenerDatosReporte(tipo);
+    const hoja = XLSX.utils.aoa_to_sheet([[titulo], [], columnas, ...filas]);
+    const libro = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(libro, hoja, titulo.slice(0, 28));
+    XLSX.writeFile(libro, `${tipo}_${document.getElementById("repMes").value}_${document.getElementById("repAnio").value}.xlsx`);
+    msg.innerHTML = `<div class="msg-ok">✔ Excel descargado.</div>`;
+  } catch (err) {
+    msg.innerHTML = `<div class="msg-error">No se pudo generar el Excel.</div>`;
+    console.error(err);
+  }
+}
+
+/* =============================================================
    INVENTARIO
    ============================================================= */
 function actualizarCamposMovimiento(){
@@ -1435,194 +1814,6 @@ function renderKardex(lista){
         <td>${escapeHtml(m.nota)}</td>
       </tr>`).join("")}
     </tbody></table>`;
-}
-
-/* =============================================================
-   BALANCE GENERAL (Estado de Situación Financiera)
-   ============================================================= */
-let BALANCE_ACUMULADO = null;
-let BALANCE_MANUAL = null;
-let BALANCE_VALOR_INVENTARIO = 0;
-
-async function generarBalance(){
-  const anio = document.getElementById("selAnioBalance").value;
-  const hastaMes = document.getElementById("selMesBalance").value;
-  const cont = document.getElementById("contenidoBalance");
-  cont.innerHTML = `<div class="estado-carga">Calculando…</div>`;
-
-  try {
-    const [resAcum, resManual, resInv] = await Promise.all([
-      fetch(`${CONFIG.appsScriptUrl}?accion=resumenAcumulado&anio=${anio}&hastaMes=${hastaMes}`),
-      fetch(`${CONFIG.appsScriptUrl}?accion=balanceManual`),
-      fetch(`${CONFIG.appsScriptUrl}?accion=inventario`)
-    ]);
-    BALANCE_ACUMULADO = await resAcum.json();
-    BALANCE_MANUAL = await resManual.json();
-    const inventarioLista = await resInv.json();
-    BALANCE_VALOR_INVENTARIO = Array.isArray(inventarioLista) ? inventarioLista.reduce((s, m) => s + (m.valorTotal || 0), 0) : 0;
-    renderBalance();
-  } catch (err) {
-    cont.innerHTML = `<div class="msg-error">No se pudo conectar con tu Google Sheet. Revisa CONFIG.appsScriptUrl.</div>`;
-    console.error(err);
-  }
-}
-
-function calcularUtilidadEjercicioBalance(){
-  const r = BALANCE_ACUMULADO;
-  const utilidadBruta = r.ventasNetas - r.costoVentas;
-  const utilidadOperativa = utilidadBruta - r.gastosPorTipo.venta - r.gastosPorTipo.administrativo - r.gastosPorTipo.otro;
-  const utilidadAntesImp = utilidadOperativa - r.gastosPorTipo.financiero;
-  const pct = Number(document.getElementById("pctImpuestoBalance").value) || 0;
-  const impuesto = utilidadAntesImp > 0 ? utilidadAntesImp * (pct / 100) : 0;
-  return utilidadAntesImp - impuesto;
-}
-
-function renderBalance(){
-  const cont = document.getElementById("contenidoBalance");
-  const m = BALANCE_MANUAL;
-
-  cont.innerHTML = `
-    <div id="bannerCuadreBalance"></div>
-
-    <div class="card">
-      <h3>ACTIVO</h3>
-      <div class="subtitulo">Activo corriente</div>
-      <div class="estado-linea editable no-print"><span class="etiqueta">Caja y Bancos</span><span><input type="number" id="balCaja" step="0.01" value="${m.cajaBancos}" oninput="recalcularBalanceTotales()"> S/</span></div>
-      <div class="estado-linea editable no-print"><span class="etiqueta">Cuentas por cobrar</span><span><input type="number" id="balCxC" step="0.01" value="${m.cuentasPorCobrar}" oninput="recalcularBalanceTotales()"> S/</span></div>
-      <div class="estado-linea"><span>Inventarios <small style="color:var(--gray);">(automático, desde la pestaña Inventario)</small></span><span class="val">S/ ${BALANCE_VALOR_INVENTARIO.toFixed(2)}</span></div>
-      <div class="estado-linea subtotal"><span>Total activo corriente</span><span class="val" id="valActivoCorriente"></span></div>
-
-      <div class="subtitulo" style="margin-top:18px;">Activo no corriente</div>
-      <div class="estado-linea editable no-print"><span class="etiqueta">Activos fijos (bruto)</span><span><input type="number" id="balActivosFijos" step="0.01" value="${m.activosFijos}" oninput="recalcularBalanceTotales()"> S/</span></div>
-      <div class="estado-linea editable no-print"><span class="etiqueta">(-) Depreciación acumulada</span><span><input type="number" id="balDeprAcum" step="0.01" value="${m.depreciacionAcumulada}" oninput="recalcularBalanceTotales()"> S/</span></div>
-      <div class="estado-linea editable no-print"><span class="etiqueta">Otros activos</span><span><input type="number" id="balOtrosActivos" step="0.01" value="${m.otrosActivos}" oninput="recalcularBalanceTotales()"> S/</span></div>
-      <div class="estado-linea subtotal"><span>Total activo no corriente</span><span class="val" id="valActivoNoCorriente"></span></div>
-
-      <div class="estado-linea subtotal" style="border-bottom:3px double var(--ink);"><span>TOTAL ACTIVO</span><span class="val" id="valTotalActivo"></span></div>
-    </div>
-
-    <div class="card">
-      <h3>PASIVO</h3>
-      <div class="subtitulo">Pasivo corriente</div>
-      <div class="estado-linea editable no-print"><span class="etiqueta">Proveedores</span><span><input type="number" id="balProveedores" step="0.01" value="${m.proveedores}" oninput="recalcularBalanceTotales()"> S/</span></div>
-      <div class="estado-linea editable no-print"><span class="etiqueta">Tributos por pagar</span><span><input type="number" id="balTributos" step="0.01" value="${m.tributosPorPagar}" oninput="recalcularBalanceTotales()"> S/</span></div>
-      <div class="estado-linea editable no-print"><span class="etiqueta">Otras obligaciones</span><span><input type="number" id="balOtrasObligaciones" step="0.01" value="${m.otrasObligaciones}" oninput="recalcularBalanceTotales()"> S/</span></div>
-      <div class="estado-linea subtotal"><span>Total pasivo corriente</span><span class="val" id="valPasivoCorriente"></span></div>
-
-      <div class="subtitulo" style="margin-top:18px;">Pasivo no corriente</div>
-      <div class="estado-linea editable no-print"><span class="etiqueta">Préstamos</span><span><input type="number" id="balPrestamos" step="0.01" value="${m.prestamos}" oninput="recalcularBalanceTotales()"> S/</span></div>
-      <div class="estado-linea subtotal"><span>Total pasivo no corriente</span><span class="val" id="valPasivoNoCorriente"></span></div>
-
-      <div class="estado-linea subtotal" style="border-bottom:3px double var(--ink);"><span>TOTAL PASIVO</span><span class="val" id="valTotalPasivo"></span></div>
-    </div>
-
-    <div class="card">
-      <h3>PATRIMONIO</h3>
-      <div class="estado-linea editable no-print"><span class="etiqueta">Capital</span><span><input type="number" id="balCapital" step="0.01" value="${m.capital}" oninput="recalcularBalanceTotales()"> S/</span></div>
-      <div class="estado-linea editable no-print"><span class="etiqueta">Utilidades acumuladas</span><span><input type="number" id="balUtilAcum" step="0.01" value="${m.utilidadesAcumuladas}" oninput="recalcularBalanceTotales()"> S/</span></div>
-      <div class="estado-linea">
-        <span class="etiqueta">Utilidad del ejercicio
-          <small>Enero a ${NOMBRES_MES[BALANCE_ACUMULADO.hastaMes-1]} ${BALANCE_ACUMULADO.anio}, con el % de impuesto de arriba.</small>
-        </span>
-        <span class="val" id="valUtilidadEjercicioBalance"></span>
-      </div>
-      <div class="estado-linea subtotal" style="border-bottom:3px double var(--ink);"><span>TOTAL PATRIMONIO</span><span class="val" id="valTotalPatrimonio"></span></div>
-    </div>
-
-    <div class="card">
-      <div class="estado-linea subtotal"><span>Total pasivo + patrimonio</span><span class="val" id="valTotalPasivoPatrimonio"></span></div>
-      <button class="btn-primary no-print" onclick="guardarSaldosBalance()">Guardar saldos manuales</button>
-      <div id="msgBalance"></div>
-    </div>
-  `;
-
-  recalcularBalanceTotales();
-}
-
-function recalcularBalanceTotales(){
-  const num = id => Number(document.getElementById(id).value) || 0;
-
-  const caja = num("balCaja");
-  const cxc = num("balCxC");
-  const activoCorriente = caja + cxc + BALANCE_VALOR_INVENTARIO;
-
-  const activosFijos = num("balActivosFijos");
-  const deprAcum = num("balDeprAcum");
-  const otrosActivos = num("balOtrosActivos");
-  const activoNoCorriente = (activosFijos - deprAcum) + otrosActivos;
-
-  const totalActivo = activoCorriente + activoNoCorriente;
-
-  const proveedores = num("balProveedores");
-  const tributos = num("balTributos");
-  const otrasObligaciones = num("balOtrasObligaciones");
-  const pasivoCorriente = proveedores + tributos + otrasObligaciones;
-
-  const prestamos = num("balPrestamos");
-  const pasivoNoCorriente = prestamos;
-
-  const totalPasivo = pasivoCorriente + pasivoNoCorriente;
-
-  const capital = num("balCapital");
-  const utilAcum = num("balUtilAcum");
-  const utilidadEjercicio = calcularUtilidadEjercicioBalance();
-  const totalPatrimonio = capital + utilAcum + utilidadEjercicio;
-
-  const totalPasivoPatrimonio = totalPasivo + totalPatrimonio;
-
-  document.getElementById("valActivoCorriente").textContent = `S/ ${activoCorriente.toFixed(2)}`;
-  document.getElementById("valActivoNoCorriente").textContent = `S/ ${activoNoCorriente.toFixed(2)}`;
-  document.getElementById("valTotalActivo").textContent = `S/ ${totalActivo.toFixed(2)}`;
-  document.getElementById("valPasivoCorriente").textContent = `S/ ${pasivoCorriente.toFixed(2)}`;
-  document.getElementById("valPasivoNoCorriente").textContent = `S/ ${pasivoNoCorriente.toFixed(2)}`;
-  document.getElementById("valTotalPasivo").textContent = `S/ ${totalPasivo.toFixed(2)}`;
-  document.getElementById("valUtilidadEjercicioBalance").textContent = `S/ ${utilidadEjercicio.toFixed(2)}`;
-  document.getElementById("valTotalPatrimonio").textContent = `S/ ${totalPatrimonio.toFixed(2)}`;
-  document.getElementById("valTotalPasivoPatrimonio").textContent = `S/ ${totalPasivoPatrimonio.toFixed(2)}`;
-
-  const banner = document.getElementById("bannerCuadreBalance");
-  const diferencia = totalActivo - totalPasivoPatrimonio;
-  if (Math.abs(diferencia) < 0.01) {
-    banner.innerHTML = `<div class="banner-resultado ganancia"><div class="icono">✅</div><div class="texto"><div class="titulo">El balance cuadra</div><div class="cifra">Activo = Pasivo + Patrimonio</div></div></div>`;
-  } else {
-    banner.innerHTML = `<div class="banner-resultado perdida"><div class="icono">⚠️</div><div class="texto"><div class="titulo">El balance no cuadra</div><div class="cifra">Diferencia: S/ ${Math.abs(diferencia).toFixed(2)}</div></div></div>`;
-  }
-}
-
-async function guardarSaldosBalance(){
-  const msg = document.getElementById("msgBalance");
-  const num = id => Number(document.getElementById(id).value) || 0;
-  const datos = {
-    cajaBancos: num("balCaja"),
-    cuentasPorCobrar: num("balCxC"),
-    activosFijos: num("balActivosFijos"),
-    depreciacionAcumulada: num("balDeprAcum"),
-    otrosActivos: num("balOtrosActivos"),
-    proveedores: num("balProveedores"),
-    prestamos: num("balPrestamos"),
-    tributosPorPagar: num("balTributos"),
-    otrasObligaciones: num("balOtrasObligaciones"),
-    capital: num("balCapital"),
-    utilidadesAcumuladas: num("balUtilAcum")
-  };
-
-  msg.innerHTML = `<div class="estado-carga" style="padding:10px 0;">Guardando…</div>`;
-  try {
-    const res = await fetch(`${CONFIG.appsScriptUrl}?accion=guardarBalanceManual`, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify(datos)
-    });
-    const data = await res.json();
-    if (data.status === "ok") {
-      msg.innerHTML = `<div class="msg-ok">✔ Saldos guardados.</div>`;
-    } else {
-      msg.innerHTML = `<div class="msg-error">${escapeHtml(data.mensaje || "No se pudo guardar")}</div>`;
-    }
-  } catch (err) {
-    msg.innerHTML = `<div class="msg-error">Error de conexión. Revisa CONFIG.appsScriptUrl.</div>`;
-    console.error(err);
-  }
 }
 
 /* =============================================================
