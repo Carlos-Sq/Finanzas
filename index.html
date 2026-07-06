@@ -196,9 +196,81 @@
 
   <!-- ───────── TAB: COSTEO Y PRECIOS ───────── -->
   <div class="tab-panel activo" id="tabCosteo">
+
+    <!-- ── Calculadora de lote (forma recomendada) ── -->
     <div class="card">
-      <h3 id="tituloFormCosteo">Nuevo modelo</h3>
-      <div class="subtitulo">Ingresa cuánto te cuesta hacer el modelo y a qué precio lo vendes. El margen se calcula solo.</div>
+      <h3>📦 Registrar lote de producción</h3>
+      <div class="subtitulo">Suma todo lo que gastaste en este lote (materiales + mano de obra + otros) y cuántas mochilas salieron. El costo por unidad se calcula solo y reemplaza el costo guardado de ese modelo.</div>
+
+      <div class="form-grid">
+        <div class="campo">
+          <label>Modelo</label>
+          <input type="text" id="loteModelo" list="sugerenciasModelosLote" placeholder="Ej. Mochila Urban 20L" oninput="actualizarPreviewLote()">
+          <datalist id="sugerenciasModelosLote"></datalist>
+        </div>
+        <div class="campo">
+          <label>Categoría</label>
+          <input type="text" id="loteCategoria" list="sugerenciasCategoriaCosteo" placeholder="Ej. Mochilas urbanas">
+        </div>
+        <div class="campo">
+          <label>Fecha del lote</label>
+          <input type="date" id="loteFecha">
+        </div>
+        <div class="campo">
+          <label>Cantidad de mochilas producidas</label>
+          <input type="number" id="loteCantidad" min="1" step="1" placeholder="Ej. 160" oninput="actualizarPreviewLote()">
+        </div>
+      </div>
+
+      <div class="form-grid cols-3">
+        <div class="campo">
+          <label>Costo materiales del lote (S/)</label>
+          <input type="number" id="loteCostoMateriales" min="0" step="0.01" value="0" oninput="actualizarPreviewLote()">
+        </div>
+        <div class="campo">
+          <label>Costo mano de obra del lote (S/)</label>
+          <input type="number" id="loteCostoManoObra" min="0" step="0.01" value="0" oninput="actualizarPreviewLote()">
+        </div>
+        <div class="campo">
+          <label>Otros costos del lote (S/)</label>
+          <input type="number" id="loteOtrosCostos" min="0" step="0.01" value="0" oninput="actualizarPreviewLote()">
+        </div>
+      </div>
+
+      <div class="campo" style="max-width:260px; margin-bottom:16px;">
+        <label>Precio de venta (S/) <small style="color:var(--gray);">déjalo vacío si no cambia</small></label>
+        <input type="number" id="lotePrecioVenta" min="0" step="0.01" placeholder="Ej. 90.00" oninput="actualizarPreviewLote()">
+      </div>
+
+      <div class="preview-costeo">
+        <div class="preview-caja">
+          <div class="etq">Costo total del lote</div>
+          <div class="cif" id="previewCostoTotalLote">S/ 0.00</div>
+        </div>
+        <div class="preview-caja">
+          <div class="etq">Costo por mochila</div>
+          <div class="cif" id="previewCostoPorUnidadLote">S/ 0.00</div>
+        </div>
+        <div class="preview-caja" id="cajaMargenLote">
+          <div class="etq">Margen (%)</div>
+          <div class="cif" id="previewMargenLote">—</div>
+        </div>
+      </div>
+
+      <button class="btn-primary" onclick="guardarLote()">Guardar lote y actualizar costo del modelo</button>
+      <div id="msgLote"></div>
+    </div>
+
+    <!-- ── Historial de lotes ── -->
+    <div class="card">
+      <h3>Historial de lotes</h3>
+      <div class="subtitulo">Para auditar cuándo y por qué subió o bajó el costo de cada modelo.</div>
+      <div id="tablaLotes"><div class="estado-carga">Cargando…</div></div>
+    </div>
+
+    <div class="card">
+      <h3 id="tituloFormCosteo">Ajuste manual (opcional)</h3>
+      <div class="subtitulo">Úsalo solo si necesitas corregir un número a mano, sin registrar un lote nuevo.</div>
 
       <input type="hidden" id="costeoId">
       <div class="form-grid">
@@ -394,6 +466,7 @@ const NOMBRES_MES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","A
 
 let PRODUCTOS = [];
 let COSTEO_LISTA = [];
+let LOTES_LISTA = [];
 
 /* =============================================================
    ACCESO
@@ -438,8 +511,10 @@ async function inicializarApp(){
 
   await cargarCosteo();
   await cargarProductos();
+  await cargarLotes();
   poblarCategoriasVenta();
   cargarRegistrosRecientes();
+  document.getElementById("loteFecha").value = isoHoy();
 }
 
 function isoHoy(){
@@ -508,6 +583,134 @@ function poblarCategoriasSugeridas(){
   const categorias = [...new Set(COSTEO_LISTA.map(c => c.category))];
   document.getElementById("sugerenciasCategoriaCosteo").innerHTML =
     categorias.map(c => `<option value="${escapeHtml(c)}">`).join("");
+  document.getElementById("sugerenciasModelosLote").innerHTML =
+    COSTEO_LISTA.map(c => `<option value="${escapeHtml(c.name)}">`).join("");
+}
+
+/* =============================================================
+   LOTES DE PRODUCCIÓN
+   ============================================================= */
+function actualizarPreviewLote(){
+  const cm  = Number(document.getElementById("loteCostoMateriales").value) || 0;
+  const cmo = Number(document.getElementById("loteCostoManoObra").value) || 0;
+  const oc  = Number(document.getElementById("loteOtrosCostos").value) || 0;
+  const cantidad = Number(document.getElementById("loteCantidad").value) || 0;
+  const pvInput = document.getElementById("lotePrecioVenta").value;
+
+  const costoTotalLote = cm + cmo + oc;
+  const costoPorUnidad = cantidad > 0 ? costoTotalLote / cantidad : 0;
+
+  document.getElementById("previewCostoTotalLote").textContent = `S/ ${costoTotalLote.toFixed(2)}`;
+  document.getElementById("previewCostoPorUnidadLote").textContent = `S/ ${costoPorUnidad.toFixed(2)}`;
+
+  const cajaMargen = document.getElementById("cajaMargenLote");
+  const previewMargen = document.getElementById("previewMargenLote");
+  cajaMargen.classList.remove("bueno", "malo");
+
+  let precioVenta = Number(pvInput) || 0;
+  if (!pvInput) {
+    // si no escribió un precio nuevo, usa el precio actual del modelo (si existe)
+    const nombre = document.getElementById("loteModelo").value.trim().toLowerCase();
+    const existente = COSTEO_LISTA.find(c => c.name.trim().toLowerCase() === nombre);
+    precioVenta = existente ? existente.precioVenta : 0;
+  }
+
+  if (precioVenta > 0 && cantidad > 0) {
+    const margenPct = ((precioVenta - costoPorUnidad) / precioVenta) * 100;
+    previewMargen.textContent = `${margenPct.toFixed(1)}%`;
+    cajaMargen.classList.add(margenPct >= 0 ? "bueno" : "malo");
+  } else {
+    previewMargen.textContent = "—";
+  }
+}
+
+async function cargarLotes(){
+  try {
+    const res = await fetch(`${CONFIG.appsScriptUrl}?accion=lotes`);
+    LOTES_LISTA = await res.json();
+  } catch (err) {
+    console.error("No se pudo cargar el historial de lotes", err);
+    LOTES_LISTA = [];
+  }
+  renderTablaLotes();
+}
+
+function renderTablaLotes(){
+  const cont = document.getElementById("tablaLotes");
+  if (!LOTES_LISTA.length) {
+    cont.innerHTML = `<div class="estado-vacio">Aún no has registrado ningún lote.</div>`;
+    return;
+  }
+  cont.innerHTML = `<table class="registros">
+    <thead><tr>
+      <th>Fecha</th><th>Modelo</th>
+      <th style="text-align:right;">Costo total lote</th>
+      <th style="text-align:right;">Cantidad</th>
+      <th style="text-align:right;">Costo/unidad</th>
+    </tr></thead>
+    <tbody>${LOTES_LISTA.map(l => `
+      <tr>
+        <td>${l.fecha}</td>
+        <td>${escapeHtml(l.modelo)}</td>
+        <td class="num">S/ ${l.costoTotalLote.toFixed(2)}</td>
+        <td class="num">${l.cantidadProducida}</td>
+        <td class="num">S/ ${l.costoPorUnidad.toFixed(2)}</td>
+      </tr>`).join("")}
+    </tbody></table>`;
+}
+
+async function guardarLote(){
+  const msg = document.getElementById("msgLote");
+  const datos = {
+    modelo: document.getElementById("loteModelo").value.trim(),
+    categoria: document.getElementById("loteCategoria").value.trim(),
+    fecha: document.getElementById("loteFecha").value,
+    costoMaterialesLote: Number(document.getElementById("loteCostoMateriales").value) || 0,
+    costoManoObraLote: Number(document.getElementById("loteCostoManoObra").value) || 0,
+    otrosCostosLote: Number(document.getElementById("loteOtrosCostos").value) || 0,
+    cantidadProducida: Number(document.getElementById("loteCantidad").value) || 0,
+    precioVenta: Number(document.getElementById("lotePrecioVenta").value) || 0
+  };
+
+  if (!datos.modelo || !datos.categoria) {
+    msg.innerHTML = `<div class="msg-error">Completa el modelo y la categoría.</div>`;
+    return;
+  }
+  if (datos.cantidadProducida <= 0) {
+    msg.innerHTML = `<div class="msg-error">Indica cuántas mochilas salieron de este lote.</div>`;
+    return;
+  }
+
+  msg.innerHTML = `<div class="estado-carga" style="padding:10px 0;">Guardando…</div>`;
+  try {
+    const res = await fetch(`${CONFIG.appsScriptUrl}?accion=registrarLote`, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(datos)
+    });
+    const data = await res.json();
+    if (data.status === "ok") {
+      msg.innerHTML = `<div class="msg-ok">✔ Lote guardado. Costo por mochila: S/ ${data.costoPorUnidad.toFixed(2)}${data.margenPorcentaje !== undefined ? ` · Margen: ${data.margenPorcentaje.toFixed(1)}%` : ""}</div>`;
+      document.getElementById("loteModelo").value = "";
+      document.getElementById("loteCategoria").value = "";
+      document.getElementById("loteCostoMateriales").value = 0;
+      document.getElementById("loteCostoManoObra").value = 0;
+      document.getElementById("loteOtrosCostos").value = 0;
+      document.getElementById("loteCantidad").value = "";
+      document.getElementById("lotePrecioVenta").value = "";
+      document.getElementById("loteFecha").value = isoHoy();
+      actualizarPreviewLote();
+      await cargarCosteo();
+      await cargarProductos();
+      await cargarLotes();
+      poblarCategoriasVenta();
+    } else {
+      msg.innerHTML = `<div class="msg-error">${escapeHtml(data.mensaje || "No se pudo guardar el lote")}</div>`;
+    }
+  } catch (err) {
+    msg.innerHTML = `<div class="msg-error">Error de conexión. Revisa CONFIG.appsScriptUrl.</div>`;
+    console.error(err);
+  }
 }
 
 function renderTablaCosteo(){
