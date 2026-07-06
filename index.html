@@ -191,6 +191,7 @@
     <button class="tab-btn activo" data-tab="tabCosteo" onclick="cambiarTab('tabCosteo')">🧮 Costeo y Precios</button>
     <button class="tab-btn" data-tab="tabVenta" onclick="cambiarTab('tabVenta')">💰 Registrar venta</button>
     <button class="tab-btn" data-tab="tabGasto" onclick="cambiarTab('tabGasto')">🧾 Registrar gasto</button>
+    <button class="tab-btn" data-tab="tabInventario" onclick="cambiarTab('tabInventario')">📦 Inventario</button>
     <button class="tab-btn" data-tab="tabResultados" onclick="cambiarTab('tabResultados')">📈 Estado de Resultados</button>
   </div>
 
@@ -425,6 +426,72 @@
     </div>
   </div>
 
+  <!-- ───────── TAB: INVENTARIO ───────── -->
+  <div class="tab-panel" id="tabInventario">
+
+    <div class="card">
+      <h3>📦 Stock actual por modelo</h3>
+      <div class="subtitulo">Se actualiza solo con cada lote de producción y cada venta (costo promedio ponderado, NIC 2). Los movimientos manuales de abajo son solo para inventario inicial, entradas sueltas o ajustes.</div>
+      <div id="tablaInventario"><div class="estado-carga">Cargando…</div></div>
+    </div>
+
+    <div class="card">
+      <h3>Registrar movimiento manual</h3>
+      <div class="subtitulo">Usa esto para el inventario inicial (al empezar a usar el sistema), entradas que no vienen de un lote, o ajustes por mermas/conteos físicos. La producción y las ventas se registran solas.</div>
+
+      <div class="form-grid">
+        <div class="campo">
+          <label>Modelo</label>
+          <input type="text" id="invModelo" list="sugerenciasModelosLote" placeholder="Ej. Mochila Urban 20L">
+        </div>
+        <div class="campo">
+          <label>Categoría</label>
+          <input type="text" id="invCategoria" list="sugerenciasCategoriaCosteo" placeholder="Ej. Mochilas urbanas">
+        </div>
+        <div class="campo">
+          <label>Fecha</label>
+          <input type="date" id="invFecha">
+        </div>
+        <div class="campo">
+          <label>Tipo de movimiento</label>
+          <select id="invTipo" onchange="actualizarCamposMovimiento()">
+            <option value="Inicial">Inventario inicial</option>
+            <option value="Entrada">Entrada (compra/reposición)</option>
+            <option value="Ajuste">Ajuste (merma / sobrante / conteo)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-grid cols-3">
+        <div class="campo">
+          <label id="labelCantidadInv">Cantidad</label>
+          <input type="number" id="invCantidad" step="1" placeholder="Ej. 20">
+        </div>
+        <div class="campo">
+          <label>Costo unitario (S/) <small style="color:var(--gray);" id="notaCostoInv">déjalo vacío para usar el costo promedio actual</small></label>
+          <input type="number" id="invCostoUnitario" min="0" step="0.01" placeholder="Ej. 45.00">
+        </div>
+        <div class="campo">
+          <label>Nota (opcional)</label>
+          <input type="text" id="invNota" placeholder="Ej. Conteo físico de fin de mes">
+        </div>
+      </div>
+
+      <button class="btn-primary" onclick="enviarMovimientoInventario()">Registrar movimiento</button>
+      <div id="msgInventario"></div>
+    </div>
+
+    <div class="card">
+      <h3>Historial de movimientos (kardex)</h3>
+      <div class="subtitulo">Todos los movimientos de inventario: inicial, producción, entradas, salidas por venta y ajustes.</div>
+      <div class="campo" style="max-width:280px; margin-bottom:14px;">
+        <label>Filtrar por modelo</label>
+        <input type="text" id="invFiltroModelo" list="sugerenciasModelosLote" placeholder="Deja vacío para ver todos" oninput="cargarKardex()">
+      </div>
+      <div id="tablaKardex"><div class="estado-carga">Cargando…</div></div>
+    </div>
+  </div>
+
   <!-- ───────── TAB: ESTADO DE RESULTADOS ───────── -->
   <div class="tab-panel" id="tabResultados">
     <div class="card no-print">
@@ -515,6 +582,11 @@ async function inicializarApp(){
   poblarCategoriasVenta();
   cargarRegistrosRecientes();
   document.getElementById("loteFecha").value = isoHoy();
+
+  document.getElementById("invFecha").value = isoHoy();
+  actualizarCamposMovimiento();
+  cargarInventario();
+  cargarKardex();
 }
 
 function isoHoy(){
@@ -1162,6 +1234,173 @@ function recalcularFinal(){
       </div>
     </div>`;
   }
+}
+
+/* =============================================================
+   INVENTARIO
+   ============================================================= */
+function actualizarCamposMovimiento(){
+  const tipo = document.getElementById("invTipo").value;
+  const labelCantidad = document.getElementById("labelCantidadInv");
+  const notaCosto = document.getElementById("notaCostoInv");
+  if (tipo === "Ajuste") {
+    labelCantidad.textContent = "Cantidad (negativa si es merma, positiva si es sobrante)";
+    notaCosto.textContent = "si es merma y lo dejas vacío, se usa el costo promedio actual";
+  } else {
+    labelCantidad.textContent = "Cantidad";
+    notaCosto.textContent = "déjalo vacío para usar el costo promedio actual";
+  }
+}
+
+async function cargarInventario(){
+  const cont = document.getElementById("tablaInventario");
+  try {
+    const res = await fetch(`${CONFIG.appsScriptUrl}?accion=inventario`);
+    const lista = await res.json();
+    renderTablaInventario(lista);
+  } catch (err) {
+    cont.innerHTML = `<div class="msg-error">No se pudo cargar el inventario. Revisa CONFIG.appsScriptUrl.</div>`;
+    console.error(err);
+  }
+}
+
+function renderTablaInventario(lista){
+  const cont = document.getElementById("tablaInventario");
+  if (!Array.isArray(lista) || !lista.length) {
+    cont.innerHTML = `<div class="estado-vacio">Aún no hay movimientos de inventario. Registra un lote de producción o el inventario inicial.</div>`;
+    return;
+  }
+  const valorTotalGeneral = lista.reduce((s, m) => s + (m.valorTotal || 0), 0);
+  cont.innerHTML = `<table class="registros">
+    <thead><tr>
+      <th>Modelo</th><th>Categoría</th>
+      <th style="text-align:right;">Stock actual</th>
+      <th style="text-align:right;">Costo promedio</th>
+      <th style="text-align:right;">Valor total</th>
+      <th></th>
+    </tr></thead>
+    <tbody>${lista.map(m => `
+      <tr>
+        <td>${escapeHtml(m.modelo)}</td>
+        <td>${escapeHtml(m.categoria)}</td>
+        <td class="num">${m.stockActual}</td>
+        <td class="num">S/ ${m.costoPromedio.toFixed(2)}</td>
+        <td class="num">S/ ${m.valorTotal.toFixed(2)}</td>
+        <td>${m.stockBajo ? `<span class="pill malo">⚠️ Stock bajo</span>` : ""}</td>
+      </tr>`).join("")}
+    </tbody>
+    <tfoot><tr>
+      <td colspan="4" style="font-weight:800; text-align:right;">Valor total del inventario</td>
+      <td class="num" style="font-weight:800;">S/ ${valorTotalGeneral.toFixed(2)}</td>
+      <td></td>
+    </tr></tfoot>
+    </table>`;
+}
+
+async function enviarMovimientoInventario(){
+  const msg = document.getElementById("msgInventario");
+  const datos = {
+    modelo: document.getElementById("invModelo").value.trim(),
+    categoria: document.getElementById("invCategoria").value.trim(),
+    fecha: document.getElementById("invFecha").value,
+    tipo: document.getElementById("invTipo").value,
+    cantidad: Number(document.getElementById("invCantidad").value) || 0,
+    costoUnitario: Number(document.getElementById("invCostoUnitario").value) || 0,
+    nota: document.getElementById("invNota").value.trim()
+  };
+
+  if (!datos.modelo) {
+    msg.innerHTML = `<div class="msg-error">Indica el modelo.</div>`;
+    return;
+  }
+  if (datos.cantidad === 0) {
+    msg.innerHTML = `<div class="msg-error">La cantidad no puede ser 0.</div>`;
+    return;
+  }
+  if (datos.tipo !== "Ajuste" && datos.cantidad < 0) {
+    msg.innerHTML = `<div class="msg-error">Solo los ajustes pueden tener cantidad negativa.</div>`;
+    return;
+  }
+  if ((datos.tipo === "Inicial" || (datos.tipo === "Ajuste" && datos.cantidad > 0)) && !document.getElementById("invCostoUnitario").value) {
+    msg.innerHTML = `<div class="msg-error">Indica el costo unitario para esta entrada.</div>`;
+    return;
+  }
+
+  msg.innerHTML = `<div class="estado-carga" style="padding:10px 0;">Guardando…</div>`;
+  try {
+    const res = await fetch(`${CONFIG.appsScriptUrl}?accion=registrarMovimientoInventario`, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(datos)
+    });
+    const data = await res.json();
+    if (data.status === "ok") {
+      msg.innerHTML = `<div class="msg-ok">✔ Movimiento registrado. Stock resultante: ${data.stockResultante} · Costo promedio: S/ ${data.costoPromedioResultante.toFixed(2)}</div>`;
+      document.getElementById("invModelo").value = "";
+      document.getElementById("invCategoria").value = "";
+      document.getElementById("invCantidad").value = "";
+      document.getElementById("invCostoUnitario").value = "";
+      document.getElementById("invNota").value = "";
+      await cargarInventario();
+      await cargarKardex();
+    } else {
+      msg.innerHTML = `<div class="msg-error">${escapeHtml(data.mensaje || "No se pudo registrar el movimiento")}</div>`;
+    }
+  } catch (err) {
+    msg.innerHTML = `<div class="msg-error">Error de conexión. Revisa CONFIG.appsScriptUrl.</div>`;
+    console.error(err);
+  }
+}
+
+async function cargarKardex(){
+  const cont = document.getElementById("tablaKardex");
+  const modelo = document.getElementById("invFiltroModelo").value.trim();
+  try {
+    const url = modelo
+      ? `${CONFIG.appsScriptUrl}?accion=movimientosInventario&modelo=${encodeURIComponent(modelo)}`
+      : `${CONFIG.appsScriptUrl}?accion=movimientosInventario`;
+    const res = await fetch(url);
+    const lista = await res.json();
+    renderKardex(lista);
+  } catch (err) {
+    cont.innerHTML = `<div class="msg-error">No se pudo cargar el kardex.</div>`;
+    console.error(err);
+  }
+}
+
+const ETIQUETA_TIPO_MOVIMIENTO = {
+  Inicial: "Inventario inicial",
+  Produccion: "Producción",
+  Entrada: "Entrada",
+  SalidaVenta: "Salida por venta",
+  Ajuste: "Ajuste"
+};
+
+function renderKardex(lista){
+  const cont = document.getElementById("tablaKardex");
+  if (!Array.isArray(lista) || !lista.length) {
+    cont.innerHTML = `<div class="estado-vacio">Aún no hay movimientos registrados.</div>`;
+    return;
+  }
+  cont.innerHTML = `<table class="registros">
+    <thead><tr>
+      <th>Fecha</th><th>Modelo</th><th>Tipo</th>
+      <th style="text-align:right;">Cantidad</th>
+      <th style="text-align:right;">Costo unit.</th>
+      <th style="text-align:right;">Stock resultante</th>
+      <th>Nota</th>
+    </tr></thead>
+    <tbody>${lista.map(m => `
+      <tr>
+        <td>${m.fecha}</td>
+        <td>${escapeHtml(m.modelo)}</td>
+        <td>${escapeHtml(ETIQUETA_TIPO_MOVIMIENTO[m.tipo] || m.tipo)}</td>
+        <td class="num" style="${m.cantidad < 0 ? 'color:var(--red-deep);' : ''}">${m.cantidad > 0 ? "+" : ""}${m.cantidad}</td>
+        <td class="num">S/ ${m.costoUnitario.toFixed(2)}</td>
+        <td class="num">${m.stockResultante}</td>
+        <td>${escapeHtml(m.nota)}</td>
+      </tr>`).join("")}
+    </tbody></table>`;
 }
 
 /* =============================================================
