@@ -205,7 +205,9 @@
     <button class="tab-btn" data-tab="tabVenta" onclick="cambiarTab('tabVenta')">💰 Registrar venta</button>
     <button class="tab-btn" data-tab="tabGasto" onclick="cambiarTab('tabGasto')">🧾 Registrar gasto</button>
     <button class="tab-btn" data-tab="tabInventario" onclick="cambiarTab('tabInventario')">📦 Inventario</button>
+    <button class="tab-btn" data-tab="tabFlujoCaja" onclick="cambiarTab('tabFlujoCaja')">💵 Flujo de Caja</button>
     <button class="tab-btn" data-tab="tabResultados" onclick="cambiarTab('tabResultados')">📈 Estado de Resultados</button>
+    <button class="tab-btn" data-tab="tabPuntoEquilibrio" onclick="cambiarTab('tabPuntoEquilibrio')">⚖️ Punto de Equilibrio</button>
     <button class="tab-btn" data-tab="tabDashboard" onclick="cambiarTab('tabDashboard')">📊 Dashboard</button>
     <button class="tab-btn" data-tab="tabReportes" onclick="cambiarTab('tabReportes')">🗂️ Reportes</button>
   </div>
@@ -253,9 +255,17 @@
         </div>
       </div>
 
-      <div class="campo" style="max-width:260px; margin-bottom:16px;">
-        <label>Precio de venta (S/) <small style="color:var(--gray);">déjalo vacío si no cambia</small></label>
-        <input type="number" id="lotePrecioVenta" min="0" step="0.01" placeholder="Ej. 90.00" oninput="actualizarPreviewLote()">
+      <div class="form-grid">
+        <div class="campo">
+          <label>Precio de venta (S/) <small style="color:var(--gray);">déjalo vacío si no cambia</small></label>
+          <input type="number" id="lotePrecioVenta" min="0" step="0.01" placeholder="Ej. 90.00" oninput="actualizarPreviewLote()">
+        </div>
+        <div class="campo">
+          <label>Cuenta de donde salió el pago del lote</label>
+          <select id="loteCuenta">
+            <option value="">— Sin cuenta (no registra flujo de caja) —</option>
+          </select>
+        </div>
       </div>
 
       <div class="preview-costeo">
@@ -380,6 +390,12 @@
           <label>Total de la venta</label>
           <input type="text" id="ventaTotal" disabled style="background:var(--paper-warm); font-weight:700;">
         </div>
+        <div class="campo">
+          <label>Cuenta donde entra el dinero</label>
+          <select id="ventaCuenta">
+            <option value="">— Sin cuenta (no registra flujo de caja) —</option>
+          </select>
+        </div>
       </div>
       <button class="btn-primary" onclick="enviarVenta()">Registrar venta</button>
       <div id="msgVenta"></div>
@@ -429,6 +445,18 @@
         <div class="campo">
           <label>Monto (S/)</label>
           <input type="number" id="gastoMonto" min="0" step="0.01">
+        </div>
+        <div class="campo">
+          <label>Cuenta de donde sale el dinero</label>
+          <select id="gastoCuenta">
+            <option value="">— Sin cuenta (no registra flujo de caja) —</option>
+          </select>
+        </div>
+        <div class="campo full" style="display:flex; align-items:center; gap:8px;">
+          <input type="checkbox" id="gastoEsFijo" style="width:18px; height:18px;">
+          <label for="gastoEsFijo" style="margin:0; cursor:pointer;">
+            Es un gasto fijo <small style="color:var(--gray);">(alquiler, sueldos, internet, etc. — se usa para calcular tu Punto de Equilibrio)</small>
+          </label>
         </div>
       </div>
       <button class="btn-primary" onclick="enviarGasto()">Registrar gasto</button>
@@ -507,6 +535,108 @@
     </div>
   </div>
 
+  <!-- ───────── TAB: FLUJO DE CAJA ───────── -->
+  <div class="tab-panel" id="tabFlujoCaja">
+    <div class="card no-print">
+      <div class="selector-periodo">
+        <div class="campo">
+          <label>Mes</label>
+          <select id="flujoMes"></select>
+        </div>
+        <div class="campo">
+          <label>Año</label>
+          <input type="number" id="flujoAnio" style="width:100px;">
+        </div>
+        <button class="btn-primary" onclick="cargarFlujoCaja()">Actualizar</button>
+      </div>
+      <div class="subtitulo">Ingresos y egresos reales de dinero, tomados de tus ventas, gastos y lotes cuando indicaste una cuenta, más los movimientos manuales que registres aquí (traspasos, aportes, retiros, ajustes).</div>
+    </div>
+
+    <div class="card">
+      <h3>💰 Saldo actual por cuenta</h3>
+      <div id="tarjetasSaldos"><div class="estado-carga">Cargando…</div></div>
+    </div>
+
+    <div class="card">
+      <h3>📊 Movimientos del mes por cuenta</h3>
+      <div id="resumenFlujoCuentas"><div class="estado-carga">Cargando…</div></div>
+    </div>
+
+    <div class="card">
+      <h3>Registrar movimiento manual</h3>
+      <div class="subtitulo">Úsalo para traspasos entre cuentas, aportes de capital, retiros, o cualquier ajuste que no venga de una venta, gasto o lote.</div>
+      <div class="form-grid">
+        <div class="campo">
+          <label>Fecha</label>
+          <input type="date" id="movCajaFecha">
+        </div>
+        <div class="campo">
+          <label>Cuenta</label>
+          <select id="movCajaCuenta"></select>
+        </div>
+        <div class="campo">
+          <label>Tipo</label>
+          <select id="movCajaTipo">
+            <option value="Ingreso">Ingreso</option>
+            <option value="Egreso">Egreso</option>
+          </select>
+        </div>
+        <div class="campo">
+          <label>Monto (S/)</label>
+          <input type="number" id="movCajaMonto" min="0" step="0.01">
+        </div>
+        <div class="campo full">
+          <label>Categoría</label>
+          <input type="text" id="movCajaCategoria" placeholder="Ej. Traspaso, Aporte de capital, Retiro">
+        </div>
+        <div class="campo full">
+          <label>Descripción (opcional)</label>
+          <input type="text" id="movCajaDescripcion" placeholder="Detalle breve">
+        </div>
+      </div>
+      <button class="btn-primary" onclick="enviarMovimientoCaja()">Registrar movimiento</button>
+      <div id="msgMovCaja"></div>
+    </div>
+
+    <div class="card">
+      <h3>Historial de movimientos del mes</h3>
+      <div class="campo" style="max-width:280px; margin-bottom:14px;">
+        <label>Filtrar por cuenta</label>
+        <select id="flujoFiltroCuenta" onchange="cargarFlujoCaja()">
+          <option value="">Todas las cuentas</option>
+        </select>
+      </div>
+      <div id="tablaMovimientosCaja"><div class="estado-carga">Cargando…</div></div>
+    </div>
+
+    <div class="card">
+      <h3>🏦 Cuentas registradas</h3>
+      <div class="subtitulo">Agrega una cuenta nueva (caja chica, banco, billetera digital, etc.) para poder asignarla en ventas, gastos, lotes y movimientos manuales.</div>
+      <div class="form-grid cols-3">
+        <div class="campo">
+          <label>Nombre</label>
+          <input type="text" id="cuentaNombre" placeholder="Ej. Cuenta BCP soles">
+        </div>
+        <div class="campo">
+          <label>Tipo</label>
+          <select id="cuentaTipo">
+            <option value="Efectivo">Efectivo</option>
+            <option value="Banco">Banco</option>
+            <option value="Digital">Billetera digital</option>
+            <option value="Otro">Otro</option>
+          </select>
+        </div>
+        <div class="campo">
+          <label>Saldo inicial (S/)</label>
+          <input type="number" id="cuentaSaldoInicial" min="0" step="0.01" value="0">
+        </div>
+      </div>
+      <button class="btn-primary" onclick="enviarCuentaNueva()">Agregar cuenta</button>
+      <div id="msgCuenta"></div>
+      <div id="tablaCuentas" style="margin-top:16px;"></div>
+    </div>
+  </div>
+
   <!-- ───────── TAB: ESTADO DE RESULTADOS ───────── -->
   <div class="tab-panel" id="tabResultados">
     <div class="card no-print">
@@ -526,6 +656,28 @@
 
     <div id="contenidoEstado">
       <div class="estado-vacio">Elige un mes y año, y presiona "Generar" para ver el Estado de Resultados.</div>
+    </div>
+  </div>
+
+  <!-- ───────── TAB: PUNTO DE EQUILIBRIO ───────── -->
+  <div class="tab-panel" id="tabPuntoEquilibrio">
+    <div class="card no-print">
+      <div class="selector-periodo">
+        <div class="campo">
+          <label>Mes</label>
+          <select id="peMes"></select>
+        </div>
+        <div class="campo">
+          <label>Año</label>
+          <input type="number" id="peAnio" style="width:100px;">
+        </div>
+        <button class="btn-primary" onclick="cargarPuntoEquilibrio()">Calcular</button>
+      </div>
+      <div class="subtitulo">Los gastos fijos se toman de los gastos marcados como "Es un gasto fijo" en la pestaña 🧾 Registrar gasto. El costo variable y el precio de venta se calculan solos con tus ventas y tu Costeo del mes elegido.</div>
+    </div>
+
+    <div id="peContenido">
+      <div class="estado-carga">Calculando…</div>
     </div>
   </div>
 
@@ -578,7 +730,7 @@
 
     <div class="card no-print">
       <h3>💵 Flujo de Caja</h3>
-      <div class="subtitulo">Aproximado: ingresos por ventas del mes menos egresos por gastos y lotes de producción pagados ese mes. No distingue ventas al crédito ni cuentas por cobrar/pagar.</div>
+      <div class="subtitulo">Ingresos y egresos reales por cuenta, tomados de los movimientos de caja del mes elegido. Solo incluye ventas/gastos/lotes a los que les asignaste una cuenta.</div>
       <div style="display:flex; gap:10px; flex-wrap:wrap;">
         <button class="btn-secundario" onclick="exportarPDF('flujoCaja')">⬇️ Exportar PDF</button>
         <button class="btn-secundario" onclick="exportarExcel('flujoCaja')">⬇️ Exportar Excel</button>
@@ -632,6 +784,7 @@ const NOMBRES_MES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","A
 let PRODUCTOS = [];
 let COSTEO_LISTA = [];
 let LOTES_LISTA = [];
+let CUENTAS_LISTA = [];
 
 /* =============================================================
    ACCESO
@@ -684,9 +837,18 @@ async function inicializarApp(){
   repMes.value = hoy.getMonth() + 1;
   document.getElementById("repAnio").value = hoy.getFullYear();
 
+  const peMes = document.getElementById("peMes");
+  peMes.innerHTML = NOMBRES_MES.map((n, i) => `<option value="${i+1}">${n}</option>`).join("");
+  peMes.value = hoy.getMonth() + 1;
+  document.getElementById("peAnio").value = hoy.getFullYear();
+
+  prellenarFechasFlujoCaja();
+  document.getElementById("movCajaFecha").value = isoHoy();
+
   await cargarCosteo();
   await cargarProductos();
   await cargarLotes();
+  await cargarCuentas();
   poblarCategoriasVenta();
   cargarRegistrosRecientes();
   document.getElementById("loteFecha").value = isoHoy();
@@ -716,6 +878,8 @@ async function cargarProductos(){
    TABS
    ============================================================= */
 let DASHBOARD_CARGADO = false;
+let PUNTO_EQUILIBRIO_CARGADO = false;
+let FLUJO_CAJA_CARGADO = false;
 
 function cambiarTab(id){
   document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("activo", b.dataset.tab === id));
@@ -723,6 +887,14 @@ function cambiarTab(id){
   if (id === "tabDashboard" && !DASHBOARD_CARGADO) {
     DASHBOARD_CARGADO = true;
     cargarDashboard();
+  }
+  if (id === "tabPuntoEquilibrio" && !PUNTO_EQUILIBRIO_CARGADO) {
+    PUNTO_EQUILIBRIO_CARGADO = true;
+    cargarPuntoEquilibrio();
+  }
+  if (id === "tabFlujoCaja" && !FLUJO_CAJA_CARGADO) {
+    FLUJO_CAJA_CARGADO = true;
+    cargarFlujoCaja();
   }
 }
 
@@ -855,7 +1027,8 @@ async function guardarLote(){
     costoManoObraLote: Number(document.getElementById("loteCostoManoObra").value) || 0,
     otrosCostosLote: Number(document.getElementById("loteOtrosCostos").value) || 0,
     cantidadProducida: Number(document.getElementById("loteCantidad").value) || 0,
-    precioVenta: Number(document.getElementById("lotePrecioVenta").value) || 0
+    precioVenta: Number(document.getElementById("lotePrecioVenta").value) || 0,
+    cuenta: document.getElementById("loteCuenta").value
   };
 
   if (!datos.modelo || !datos.categoria) {
@@ -1070,7 +1243,8 @@ async function enviarVenta(){
     categoria:      producto ? producto.category : document.getElementById("ventaCategoria").value,
     nombre:         producto ? producto.name : "",
     cantidad:       Number(document.getElementById("ventaCantidad").value) || 0,
-    precioUnitario: Number(document.getElementById("ventaPrecio").value) || 0
+    precioUnitario: Number(document.getElementById("ventaPrecio").value) || 0,
+    cuenta:         document.getElementById("ventaCuenta").value
   };
 
   if (!datos.nombre || datos.cantidad <= 0) {
@@ -1110,7 +1284,9 @@ async function enviarGasto(){
     tipo:        document.getElementById("gastoTipo").value,
     categoria:   document.getElementById("gastoCategoria").value.trim(),
     descripcion: document.getElementById("gastoDescripcion").value.trim(),
-    monto:       Number(document.getElementById("gastoMonto").value) || 0
+    monto:       Number(document.getElementById("gastoMonto").value) || 0,
+    esFijo:      document.getElementById("gastoEsFijo").checked,
+    cuenta:      document.getElementById("gastoCuenta").value
   };
 
   if (!datos.categoria || datos.monto <= 0) {
@@ -1127,10 +1303,11 @@ async function enviarGasto(){
     });
     const data = await res.json();
     if (data.status === "ok") {
-      msg.innerHTML = `<div class="msg-ok">✔ Gasto registrado</div>`;
+      msg.innerHTML = `<div class="msg-ok">✔ Gasto registrado${datos.esFijo ? " (fijo)" : ""}</div>`;
       document.getElementById("gastoCategoria").value = "";
       document.getElementById("gastoDescripcion").value = "";
       document.getElementById("gastoMonto").value = "";
+      document.getElementById("gastoEsFijo").checked = false;
       cargarRegistrosRecientes();
     } else {
       msg.innerHTML = `<div class="msg-error">${escapeHtml(data.mensaje || "No se pudo registrar")}</div>`;
@@ -1374,20 +1551,6 @@ async function obtenerDatosDelMes(mes, anio){
   return { ventas, gastos, lotes };
 }
 
-function calcularFlujoCaja(ventas, gastos, lotes){
-  const ingresos = ventas.reduce((s, v) => s + v.total, 0);
-  const egresosGastos = gastos.reduce((s, g) => s + g.monto, 0);
-  const egresosLotes = lotes.reduce((s, l) => s + l.costoTotalLote, 0);
-  const egresosPorCategoriaGasto = {};
-  gastos.forEach(g => { egresosPorCategoriaGasto[g.tipo] = (egresosPorCategoriaGasto[g.tipo] || 0) + g.monto; });
-  return {
-    ingresos, egresosGastos, egresosLotes,
-    egresosTotal: egresosGastos + egresosLotes,
-    saldoNeto: ingresos - egresosGastos - egresosLotes,
-    egresosPorCategoriaGasto
-  };
-}
-
 async function cargarDashboard(){
   const cont = document.getElementById("dashboardContenido");
   const mes = document.getElementById("dashMes").value;
@@ -1395,14 +1558,16 @@ async function cargarDashboard(){
   cont.innerHTML = `<div class="estado-carga">Calculando indicadores…</div>`;
 
   try {
-    const [resResumen, resInv, datosMes] = await Promise.all([
+    const [resResumen, resInv, datosMes, flujoReal, saldosReal] = await Promise.all([
       fetch(`${CONFIG.appsScriptUrl}?accion=resumenMensual&mes=${mes}&anio=${anio}`).then(r => r.json()),
       fetch(`${CONFIG.appsScriptUrl}?accion=inventario`).then(r => r.json()),
-      obtenerDatosDelMes(mes, anio)
+      obtenerDatosDelMes(mes, anio),
+      fetch(`${CONFIG.appsScriptUrl}?accion=flujoCaja&mes=${mes}&anio=${anio}`).then(r => r.json()),
+      fetch(`${CONFIG.appsScriptUrl}?accion=saldosCuentas`).then(r => r.json())
     ]);
 
     const r = resResumen;
-    const { ventas, gastos, lotes } = datosMes;
+    const { ventas } = datosMes;
     const inventario = Array.isArray(resInv) ? resInv : [];
 
     const utilidadBruta     = r.ventasNetas - r.costoVentas;
@@ -1414,7 +1579,7 @@ async function cargarDashboard(){
     const inventarioValorizado = inventario.reduce((s, m) => s + (m.valorTotal || 0), 0);
     const stockBajo = inventario.filter(m => m.stockBajo);
 
-    const flujo = calcularFlujoCaja(ventas, gastos, lotes);
+    const saldoTotalCuentas = (Array.isArray(saldosReal) ? saldosReal : []).reduce((s, c) => s + c.saldoActual, 0);
 
     // Productos más vendidos (por cantidad) este mes
     const porModelo = {};
@@ -1431,7 +1596,8 @@ async function cargarDashboard(){
         <div class="kpi-caja ${margenBruto >= 0 ? 'bueno' : 'malo'}"><div class="etq">Margen bruto</div><div class="cif">${margenBruto.toFixed(1)}%</div></div>
         <div class="kpi-caja ${margenNeto >= 0 ? 'bueno' : 'malo'}"><div class="etq">Margen neto</div><div class="cif">${margenNeto.toFixed(1)}%</div></div>
         <div class="kpi-caja"><div class="etq">Inventario valorizado</div><div class="cif">S/ ${inventarioValorizado.toFixed(2)}</div></div>
-        <div class="kpi-caja ${flujo.saldoNeto >= 0 ? 'bueno' : 'malo'}"><div class="etq">Flujo de caja del mes</div><div class="cif">S/ ${flujo.saldoNeto.toFixed(2)}</div></div>
+        <div class="kpi-caja ${flujoReal.saldoNetoMes >= 0 ? 'bueno' : 'malo'}"><div class="etq">Flujo de caja del mes</div><div class="cif">S/ ${flujoReal.saldoNetoMes.toFixed(2)}</div></div>
+        <div class="kpi-caja ${saldoTotalCuentas >= 0 ? 'bueno' : 'malo'}"><div class="etq">Saldo total en cuentas</div><div class="cif">S/ ${saldoTotalCuentas.toFixed(2)}</div></div>
         <div class="kpi-caja ${stockBajo.length > 0 ? 'malo' : 'bueno'}"><div class="etq">Modelos con stock bajo</div><div class="cif">${stockBajo.length}</div></div>
         <div class="kpi-caja"><div class="etq">Modelos vendidos este mes</div><div class="cif">${masVendidos.length}</div></div>
       </div>
@@ -1542,6 +1708,424 @@ function construirGraficoBarras(id, etiquetas, valores, etiquetaSerie, colorPorS
 }
 
 /* =============================================================
+   CUENTAS Y FLUJO DE CAJA
+   ============================================================= */
+async function cargarCuentas(){
+  try {
+    const res = await fetch(`${CONFIG.appsScriptUrl}?accion=cuentas`);
+    CUENTAS_LISTA = await res.json();
+  } catch (err) {
+    console.error("No se pudieron cargar las cuentas", err);
+    CUENTAS_LISTA = [];
+  }
+  poblarSelectCuentas("ventaCuenta", true);
+  poblarSelectCuentas("gastoCuenta", true);
+  poblarSelectCuentas("loteCuenta", true);
+  poblarSelectCuentas("movCajaCuenta", false);
+  poblarSelectCuentas("flujoFiltroCuenta", true, "Todas las cuentas");
+  renderTablaCuentas();
+}
+
+// Llena un <select> con las cuentas activas. Si conServicio es true,
+// agrega una opción vacía al inicio (para "sin cuenta" o "todas").
+function poblarSelectCuentas(idSelect, conOpcionVacia, textoOpcionVacia){
+  const sel = document.getElementById(idSelect);
+  if (!sel) return;
+  const valorPrevio = sel.value;
+  const activas = CUENTAS_LISTA.filter(c => c.activa);
+  const opcionVacia = conOpcionVacia
+    ? `<option value="">${escapeHtml(textoOpcionVacia || "— Sin cuenta (no registra flujo de caja) —")}</option>`
+    : "";
+  sel.innerHTML = opcionVacia + activas.map(c => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.nombre)}</option>`).join("");
+  if ([...sel.options].some(o => o.value === valorPrevio)) sel.value = valorPrevio;
+}
+
+function nombreCuenta(id){
+  const c = CUENTAS_LISTA.find(x => x.id === id);
+  return c ? c.nombre : (id || "—");
+}
+
+// Solo prellena mes/año del tab Flujo de Caja, sin hacer fetch.
+// Se usa en inicializarApp() para no duplicar la carga cuando el
+// usuario abre la pestaña por primera vez (la carga perezosa de
+// cambiarTab() se encarga de eso).
+function prellenarFechasFlujoCaja(){
+  const flujoMes = document.getElementById("flujoMes");
+  flujoMes.innerHTML = NOMBRES_MES.map((n, i) => `<option value="${i+1}">${n}</option>`).join("");
+  const hoy = new Date();
+  flujoMes.value = hoy.getMonth() + 1;
+  document.getElementById("flujoAnio").value = hoy.getFullYear();
+}
+
+async function cargarFlujoCaja(){
+  const mes = document.getElementById("flujoMes").value;
+  const anio = document.getElementById("flujoAnio").value;
+  const cuentaFiltro = document.getElementById("flujoFiltroCuenta").value;
+
+  document.getElementById("tarjetasSaldos").innerHTML = `<div class="estado-carga">Cargando…</div>`;
+  document.getElementById("resumenFlujoCuentas").innerHTML = `<div class="estado-carga">Cargando…</div>`;
+  document.getElementById("tablaMovimientosCaja").innerHTML = `<div class="estado-carga">Cargando…</div>`;
+
+  try {
+    const [saldos, flujo, movimientos] = await Promise.all([
+      fetch(`${CONFIG.appsScriptUrl}?accion=saldosCuentas`).then(r => r.json()),
+      fetch(`${CONFIG.appsScriptUrl}?accion=flujoCaja&mes=${mes}&anio=${anio}`).then(r => r.json()),
+      fetch(`${CONFIG.appsScriptUrl}?accion=movimientosCaja&mes=${mes}&anio=${anio}${cuentaFiltro ? "&cuenta=" + encodeURIComponent(cuentaFiltro) : ""}`).then(r => r.json())
+    ]);
+    renderSaldosCuentas(saldos);
+    renderResumenFlujoCuentas(flujo);
+    renderTablaMovimientosCaja(movimientos);
+  } catch (err) {
+    document.getElementById("tarjetasSaldos").innerHTML = `<div class="msg-error">No se pudo cargar el Flujo de Caja. Revisa CONFIG.appsScriptUrl.</div>`;
+    document.getElementById("resumenFlujoCuentas").innerHTML = "";
+    document.getElementById("tablaMovimientosCaja").innerHTML = "";
+    console.error(err);
+  }
+}
+
+function renderSaldosCuentas(saldos){
+  const cont = document.getElementById("tarjetasSaldos");
+  if (!saldos.length) {
+    cont.innerHTML = `<div class="estado-vacio">Aún no has creado ninguna cuenta. Agrega una abajo, en "Cuentas registradas".</div>`;
+    return;
+  }
+  cont.innerHTML = `<div class="kpi-grid">${saldos.map(c => `
+    <div class="kpi-caja ${c.saldoActual >= 0 ? 'bueno' : 'malo'}">
+      <div class="etq">${escapeHtml(c.nombre)}${c.activa ? "" : " (inactiva)"}</div>
+      <div class="cif">S/ ${c.saldoActual.toFixed(2)}</div>
+    </div>`).join("")}
+  </div>`;
+}
+
+function renderResumenFlujoCuentas(flujo){
+  const cont = document.getElementById("resumenFlujoCuentas");
+  cont.innerHTML = `
+    <div class="kpi-grid" style="margin-bottom:18px;">
+      <div class="kpi-caja bueno"><div class="etq">Ingresos del mes</div><div class="cif">S/ ${flujo.ingresosTotal.toFixed(2)}</div></div>
+      <div class="kpi-caja malo"><div class="etq">Egresos del mes</div><div class="cif">S/ ${flujo.egresosTotal.toFixed(2)}</div></div>
+      <div class="kpi-caja ${flujo.saldoNetoMes >= 0 ? 'bueno' : 'malo'}"><div class="etq">Saldo neto del mes</div><div class="cif">S/ ${flujo.saldoNetoMes.toFixed(2)}</div></div>
+    </div>
+    ${flujo.porCuenta.length ? `<table class="registros">
+      <thead><tr><th>Cuenta</th><th style="text-align:right;">Ingresos</th><th style="text-align:right;">Egresos</th><th style="text-align:right;">Saldo neto</th></tr></thead>
+      <tbody>${flujo.porCuenta.map(c => `
+        <tr>
+          <td>${escapeHtml(c.cuentaNombre)}</td>
+          <td class="num">S/ ${c.ingresos.toFixed(2)}</td>
+          <td class="num">S/ ${c.egresos.toFixed(2)}</td>
+          <td class="num">S/ ${c.saldoNeto.toFixed(2)}</td>
+        </tr>`).join("")}
+      </tbody></table>` : `<div class="estado-vacio">Sin cuentas registradas.</div>`}
+  `;
+}
+
+function renderTablaMovimientosCaja(movimientos){
+  const cont = document.getElementById("tablaMovimientosCaja");
+  if (!movimientos.length) {
+    cont.innerHTML = `<div class="estado-vacio">Aún no hay movimientos de caja en este mes.</div>`;
+    return;
+  }
+  cont.innerHTML = `<table class="registros">
+    <thead><tr>
+      <th>Fecha</th><th>Cuenta</th><th>Tipo</th><th>Categoría</th><th>Origen</th>
+      <th style="text-align:right;">Monto</th>
+    </tr></thead>
+    <tbody>${movimientos.map(m => `
+      <tr>
+        <td>${m.fecha}</td>
+        <td>${escapeHtml(nombreCuenta(m.cuenta))}</td>
+        <td>${m.tipo === "Ingreso" ? "🟢 Ingreso" : "🔴 Egreso"}</td>
+        <td>${escapeHtml(m.categoria)}</td>
+        <td>${escapeHtml(m.origen)}</td>
+        <td class="num">S/ ${m.monto.toFixed(2)}</td>
+      </tr>`).join("")}
+    </tbody></table>`;
+}
+
+async function enviarMovimientoCaja(){
+  const msg = document.getElementById("msgMovCaja");
+  const datos = {
+    fecha:       document.getElementById("movCajaFecha").value,
+    cuenta:      document.getElementById("movCajaCuenta").value,
+    tipo:        document.getElementById("movCajaTipo").value,
+    categoria:   document.getElementById("movCajaCategoria").value.trim(),
+    descripcion: document.getElementById("movCajaDescripcion").value.trim(),
+    monto:       Number(document.getElementById("movCajaMonto").value) || 0
+  };
+
+  if (!datos.cuenta || datos.monto <= 0) {
+    msg.innerHTML = `<div class="msg-error">Elige una cuenta y un monto válido.</div>`;
+    return;
+  }
+
+  msg.innerHTML = `<div class="estado-carga" style="padding:10px 0;">Guardando…</div>`;
+  try {
+    const res = await fetch(`${CONFIG.appsScriptUrl}?accion=registrarMovimientoCaja`, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(datos)
+    });
+    const data = await res.json();
+    if (data.status === "ok") {
+      msg.innerHTML = `<div class="msg-ok">✔ Movimiento registrado.</div>`;
+      document.getElementById("movCajaCategoria").value = "";
+      document.getElementById("movCajaDescripcion").value = "";
+      document.getElementById("movCajaMonto").value = "";
+      cargarFlujoCaja();
+    } else {
+      msg.innerHTML = `<div class="msg-error">${escapeHtml(data.mensaje || "No se pudo registrar")}</div>`;
+    }
+  } catch (err) {
+    msg.innerHTML = `<div class="msg-error">Error de conexión. Revisa CONFIG.appsScriptUrl.</div>`;
+    console.error(err);
+  }
+}
+
+function renderTablaCuentas(){
+  const cont = document.getElementById("tablaCuentas");
+  if (!CUENTAS_LISTA.length) {
+    cont.innerHTML = `<div class="estado-vacio">Aún no has creado ninguna cuenta.</div>`;
+    return;
+  }
+  cont.innerHTML = `<table class="registros">
+    <thead><tr><th>Nombre</th><th>Tipo</th><th style="text-align:right;">Saldo inicial</th><th>Estado</th></tr></thead>
+    <tbody>${CUENTAS_LISTA.map(c => `
+      <tr>
+        <td>${escapeHtml(c.nombre)}</td>
+        <td>${escapeHtml(c.tipoCuenta)}</td>
+        <td class="num">S/ ${c.saldoInicial.toFixed(2)}</td>
+        <td>${c.activa ? '<span class="pill bueno">Activa</span>' : '<span class="pill malo">Inactiva</span>'}</td>
+      </tr>`).join("")}
+    </tbody></table>`;
+}
+
+async function enviarCuentaNueva(){
+  const msg = document.getElementById("msgCuenta");
+  const datos = {
+    nombre: document.getElementById("cuentaNombre").value.trim(),
+    tipoCuenta: document.getElementById("cuentaTipo").value,
+    saldoInicial: Number(document.getElementById("cuentaSaldoInicial").value) || 0
+  };
+
+  if (!datos.nombre) {
+    msg.innerHTML = `<div class="msg-error">Escribe un nombre para la cuenta.</div>`;
+    return;
+  }
+
+  msg.innerHTML = `<div class="estado-carga" style="padding:10px 0;">Guardando…</div>`;
+  try {
+    const res = await fetch(`${CONFIG.appsScriptUrl}?accion=registrarCuenta`, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(datos)
+    });
+    const data = await res.json();
+    if (data.status === "ok") {
+      msg.innerHTML = `<div class="msg-ok">✔ Cuenta creada.</div>`;
+      document.getElementById("cuentaNombre").value = "";
+      document.getElementById("cuentaSaldoInicial").value = "0";
+      await cargarCuentas();
+      cargarFlujoCaja();
+    } else {
+      msg.innerHTML = `<div class="msg-error">${escapeHtml(data.mensaje || "No se pudo crear la cuenta")}</div>`;
+    }
+  } catch (err) {
+    msg.innerHTML = `<div class="msg-error">Error de conexión. Revisa CONFIG.appsScriptUrl.</div>`;
+    console.error(err);
+  }
+}
+
+/* =============================================================
+   PUNTO DE EQUILIBRIO
+   ============================================================= */
+let PE_ACTUAL = null;
+
+async function cargarPuntoEquilibrio(){
+  const cont = document.getElementById("peContenido");
+  const mes = document.getElementById("peMes").value;
+  const anio = document.getElementById("peAnio").value;
+  cont.innerHTML = `<div class="estado-carga">Calculando…</div>`;
+
+  try {
+    const res = await fetch(`${CONFIG.appsScriptUrl}?accion=puntoEquilibrio&mes=${mes}&anio=${anio}`);
+    PE_ACTUAL = await res.json();
+    if (PE_ACTUAL.status === "error") throw new Error(PE_ACTUAL.mensaje);
+    renderPuntoEquilibrio();
+  } catch (err) {
+    cont.innerHTML = `<div class="msg-error">No se pudo calcular el Punto de Equilibrio. Revisa CONFIG.appsScriptUrl.</div>`;
+    console.error(err);
+  }
+}
+
+function fmtSol(n){
+  return `S/ ${(Number(n) || 0).toFixed(2)}`;
+}
+
+function renderPuntoEquilibrio(){
+  const r = PE_ACTUAL;
+  const cont = document.getElementById("peContenido");
+
+  if (r.unidadesVendidas === 0 && r.gastosFijos === 0) {
+    cont.innerHTML = `<div class="card"><div class="estado-vacio">
+      No hay ventas ni gastos fijos registrados para ${NOMBRES_MES[r.mes-1]} ${r.anio}.<br>
+      Registra ventas y marca al menos un gasto como "fijo" para calcular tu Punto de Equilibrio.
+    </div></div>`;
+    return;
+  }
+
+  cont.innerHTML = `
+    <div class="kpi-grid">
+      <div class="kpi-caja"><div class="etq">Gastos fijos del mes</div><div class="cif">${fmtSol(r.gastosFijos)}</div></div>
+      <div class="kpi-caja"><div class="etq">Costo variable unitario</div><div class="cif">${fmtSol(r.costoVariableUnitario)}</div></div>
+      <div class="kpi-caja"><div class="etq">Precio de venta promedio</div><div class="cif">${fmtSol(r.precioVentaPromedio)}</div></div>
+      <div class="kpi-caja ${r.margenContribucion >= 0 ? 'bueno' : 'malo'}"><div class="etq">Margen de contribución</div><div class="cif">${fmtSol(r.margenContribucion)} (${r.margenContribucionPct.toFixed(1)}%)</div></div>
+      <div class="kpi-caja"><div class="etq">Punto de equilibrio (unidades)</div><div class="cif">${r.peUnidades !== null ? Math.ceil(r.peUnidades) + ' mochilas' : '—'}</div></div>
+      <div class="kpi-caja"><div class="etq">Punto de equilibrio (S/)</div><div class="cif">${r.peDinero !== null ? fmtSol(r.peDinero) : '—'}</div></div>
+      <div class="kpi-caja ${r.margenSeguridad === null ? '' : (r.margenSeguridad >= 0 ? 'bueno' : 'malo')}"><div class="etq">Margen de seguridad</div><div class="cif">${r.margenSeguridad !== null ? r.margenSeguridad.toFixed(1) + '%' : '—'}</div></div>
+      <div class="kpi-caja ${r.utilidadEsperada >= 0 ? 'bueno' : 'malo'}"><div class="etq">Utilidad esperada (real)</div><div class="cif">${fmtSol(r.utilidadEsperada)}</div></div>
+    </div>
+
+    <div class="card">
+      <h3>🟢 En palabras simples</h3>
+      <div class="estado-linea"><span>Necesitas vender</span><span class="val">${r.peUnidades !== null ? Math.ceil(r.peUnidades) + ' mochilas' : 'No aplica (margen de contribución negativo o nulo)'}</span></div>
+      <div class="estado-linea"><span>o facturar</span><span class="val">${r.peDinero !== null ? fmtSol(r.peDinero) : '—'}</span></div>
+      <div class="estado-linea"><span>para cubrir todos tus costos fijos y variables de ${NOMBRES_MES[r.mes-1]} ${r.anio}.</span><span class="val"></span></div>
+      ${r.modelosSinCosteo.length > 0 ? `
+        <div class="alerta-costeo">
+          ⚠️ Estos modelos vendidos no tienen costo registrado en "Costeo y Precios", así que no entraron en el costo variable promedio:
+          ${r.modelosSinCosteo.map(escapeHtml).join(", ")}.
+        </div>
+      ` : ""}
+    </div>
+
+    <div class="card">
+      <h3>🧮 Simulador</h3>
+      <div class="subtitulo">Cambia estos valores para ver cómo se mueve tu Punto de Equilibrio, sin afectar tus datos reales.</div>
+      <div class="form-grid cols-3">
+        <div class="campo">
+          <label>Precio de venta (S/)</label>
+          <input type="number" id="simPrecio" min="0" step="0.01" value="${r.precioVentaPromedio.toFixed(2)}" oninput="recalcularSimuladorPE()">
+        </div>
+        <div class="campo">
+          <label>Costo variable unitario (S/)</label>
+          <input type="number" id="simCostoVariable" min="0" step="0.01" value="${r.costoVariableUnitario.toFixed(2)}" oninput="recalcularSimuladorPE()">
+        </div>
+        <div class="campo">
+          <label>Gastos fijos (S/)</label>
+          <input type="number" id="simGastosFijos" min="0" step="0.01" value="${r.gastosFijos.toFixed(2)}" oninput="recalcularSimuladorPE()">
+        </div>
+      </div>
+      <div class="preview-costeo">
+        <div class="preview-caja">
+          <div class="etq">Margen de contribución</div>
+          <div class="cif" id="simMargen">—</div>
+        </div>
+        <div class="preview-caja">
+          <div class="etq">PE en unidades</div>
+          <div class="cif" id="simPeUnidades">—</div>
+        </div>
+        <div class="preview-caja">
+          <div class="etq">PE en soles</div>
+          <div class="cif" id="simPeDinero">—</div>
+        </div>
+      </div>
+      <div id="simRecomendaciones"></div>
+    </div>
+
+    <div class="grafico-caja">
+      <h4>Ingresos vs. Costo total, y zona de equilibrio</h4>
+      <canvas id="graficoPuntoEquilibrio"></canvas>
+    </div>
+  `;
+
+  recalcularSimuladorPE();
+}
+
+// Todo el cálculo del simulador es en el navegador (no llama al
+// servidor en cada cambio), tomando como base los datos reales del
+// mes ya cargados en PE_ACTUAL.
+function recalcularSimuladorPE(){
+  const r = PE_ACTUAL;
+  const precio = Number(document.getElementById("simPrecio").value) || 0;
+  const costoVar = Number(document.getElementById("simCostoVariable").value) || 0;
+  const gastosFijos = Number(document.getElementById("simGastosFijos").value) || 0;
+
+  const margen = precio - costoVar;
+  const margenPct = precio > 0 ? (margen / precio) * 100 : 0;
+  const peUnidades = margen > 0 ? gastosFijos / margen : null;
+  const peDinero = margenPct > 0 ? gastosFijos / (margenPct / 100) : null;
+
+  document.getElementById("simMargen").textContent = `${fmtSol(margen)} (${margenPct.toFixed(1)}%)`;
+  document.getElementById("simPeUnidades").textContent = peUnidades !== null ? `${Math.ceil(peUnidades)} mochilas` : "—";
+  document.getElementById("simPeDinero").textContent = peDinero !== null ? fmtSol(peDinero) : "—";
+
+  document.getElementById("simRecomendaciones").innerHTML = generarRecomendacionesPE(r, precio, costoVar, gastosFijos, margen, peUnidades);
+
+  construirGraficoPuntoEquilibrio(precio, costoVar, gastosFijos, peUnidades);
+}
+
+// Compara el escenario simulado contra el real (PE_ACTUAL) y arma
+// 2-3 frases de recomendación con datos concretos.
+function generarRecomendacionesPE(r, precio, costoVar, gastosFijos, margen, peUnidades){
+  const frases = [];
+
+  if (r.peUnidades !== null && peUnidades !== null && peUnidades !== r.peUnidades) {
+    const cambioPct = ((peUnidades - r.peUnidades) / r.peUnidades) * 100;
+    if (cambioPct < 0) {
+      frases.push(`Con estos valores, tu punto de equilibrio baja un ${Math.abs(cambioPct).toFixed(1)}% respecto al real de este mes.`);
+    } else {
+      frases.push(`Con estos valores, tu punto de equilibrio sube un ${cambioPct.toFixed(1)}% respecto al real de este mes.`);
+    }
+  }
+
+  if (gastosFijos > 0 && (r.ventasNetas > 0)) {
+    const costoVariableTotalReal = r.costoVariableUnitario * r.unidadesVendidas;
+    const costosTotales = gastosFijos + costoVariableTotalReal;
+    if (costosTotales > 0) {
+      frases.push(`Los gastos fijos representan el ${((gastosFijos / costosTotales) * 100).toFixed(0)}% de tus costos totales estimados.`);
+    }
+  }
+
+  if (margen <= 0) {
+    frases.push(`⚠️ Con este precio y este costo variable, cada mochila que vendes pierde dinero. No hay punto de equilibrio posible hasta que el precio supere al costo variable.`);
+  }
+
+  return frases.map(f => `<div class="alerta-costeo" style="background:var(--gold-soft); border-color:var(--gold);">💡 ${escapeHtml(f)}</div>`).join("");
+}
+
+function construirGraficoPuntoEquilibrio(precio, costoVar, gastosFijos, peUnidades){
+  destruirGrafico("graficoPuntoEquilibrio");
+  const ctx = document.getElementById("graficoPuntoEquilibrio");
+  if (!ctx) return;
+
+  const unidadesEje = peUnidades && peUnidades > 0 ? Math.ceil(peUnidades * 2) : 100;
+  const paso = Math.max(1, Math.round(unidadesEje / 10));
+  const etiquetas = [];
+  const ingresos = [];
+  const costosTotales = [];
+  for (let u = 0; u <= unidadesEje; u += paso) {
+    etiquetas.push(u);
+    ingresos.push(u * precio);
+    costosTotales.push(gastosFijos + (u * costoVar));
+  }
+
+  GRAFICOS_DASH["graficoPuntoEquilibrio"] = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: etiquetas,
+      datasets: [
+        { label: "Ingresos", data: ingresos, borderColor: "#2E7D4F", backgroundColor: "transparent", tension: 0.1 },
+        { label: "Costos totales", data: costosTotales, borderColor: "#C0392B", backgroundColor: "transparent", tension: 0.1 }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: "bottom" } },
+      scales: { x: { title: { display: true, text: "Unidades vendidas" } }, y: { title: { display: true, text: "S/" } } }
+    }
+  });
+}
+
+/* =============================================================
    REPORTES (exportar PDF / Excel)
    ============================================================= */
 async function obtenerDatosReporte(tipo){
@@ -1571,16 +2155,13 @@ async function obtenerDatosReporte(tipo){
   }
 
   if (tipo === "flujoCaja") {
-    const { ventas, gastos, lotes } = await obtenerDatosDelMes(mes, anio);
-    const f = calcularFlujoCaja(ventas, gastos, lotes);
+    const f = await fetch(`${CONFIG.appsScriptUrl}?accion=flujoCaja&mes=${mes}&anio=${anio}`).then(x => x.json());
     return {
-      titulo: `Flujo de Caja (aproximado) — ${NOMBRES_MES[mes-1]} ${anio}`,
-      columnas: ["Concepto", "Monto (S/)"],
+      titulo: `Flujo de Caja — ${NOMBRES_MES[mes-1]} ${anio}`,
+      columnas: ["Cuenta", "Ingresos (S/)", "Egresos (S/)", "Saldo neto (S/)"],
       filas: [
-        ["Ingresos por ventas", f.ingresos.toFixed(2)],
-        ["(-) Egresos por gastos", f.egresosGastos.toFixed(2)],
-        ["(-) Egresos por lotes de producción", f.egresosLotes.toFixed(2)],
-        ["= Saldo neto del mes", f.saldoNeto.toFixed(2)]
+        ...f.porCuenta.map(c => [c.cuentaNombre, c.ingresos.toFixed(2), c.egresos.toFixed(2), c.saldoNeto.toFixed(2)]),
+        ["TOTAL", f.ingresosTotal.toFixed(2), f.egresosTotal.toFixed(2), f.saldoNetoMes.toFixed(2)]
       ]
     };
   }
