@@ -1998,24 +1998,12 @@ function renderMetaMinimaHTML(m){
 
       ${m.modelosSinCosteo.length > 0 ? `
         <div class="alerta-costeo">
-          ⚠️ Estos modelos vendidos no tienen costo registrado en "Costeo y Precios", así que no entraron en el precio promedio:
+          ⚠️ Estos modelos vendidos no tienen costo registrado en "Costeo y Precios" (sí cuentan para la facturación y la meta, pero afecta el precio promedio de referencia y el costeo de otros módulos):
           ${m.modelosSinCosteo.map(escapeHtml).join(", ")}.
         </div>
       ` : ""}
-    </div>
 
-    <div class="card ${m.esUtilidad ? 'bueno' : 'malo'}" style="margin-top:16px;">
-      <h3>📊 Resultado económico del mes (al cierre)</h3>
-      <div class="subtitulo">Facturación Total − Gastos Totales = Utilidad o Pérdida</div>
-      <div class="estado-linea"><span>Facturación total</span><span class="val">${fmtSol(m.ventasNetas)}</span></div>
-      <div class="estado-linea"><span>Gastos totales</span><span class="val">${fmtSol(m.gastosOperativos)}</span></div>
-      <div class="kpi-grid" style="margin-top:12px;">
-        <div class="kpi-caja ${m.esUtilidad ? 'bueno' : 'malo'}">
-          <div class="etq">${m.esUtilidad ? 'Utilidad del mes' : 'Pérdida del mes'}</div>
-          <div class="cif">${fmtSol(Math.abs(m.rentabilidad))}</div>
-        </div>
-      </div>
-      <div class="subtitulo" style="margin-top:8px;">${m.esUtilidad ? '✅ El mes cierra con utilidad: la empresa facturó más de lo que gastó.' : '⚠️ El mes cierra con pérdida: la empresa gastó más de lo que facturó.'}</div>
+      <div class="subtitulo" style="margin-top:14px; opacity:.8;">Este módulo no calcula utilidad ni pérdida. Para ver el resultado económico del mes (Ventas Netas − Costo de Ventas − Gastos Operativos), revisa la pestaña 📈 Estado de Resultados.</div>
     </div>
   `;
 }
