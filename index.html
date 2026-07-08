@@ -207,7 +207,7 @@
     <button class="tab-btn" data-tab="tabInventario" onclick="cambiarTab('tabInventario')">📦 Inventario</button>
     <button class="tab-btn" data-tab="tabFlujoCaja" onclick="cambiarTab('tabFlujoCaja')">💵 Flujo de Caja</button>
     <button class="tab-btn" data-tab="tabResultados" onclick="cambiarTab('tabResultados')">📈 Estado de Resultados</button>
-    <button class="tab-btn" data-tab="tabPuntoEquilibrio" onclick="cambiarTab('tabPuntoEquilibrio')">⚖️ Punto de Equilibrio</button>
+    <button class="tab-btn" data-tab="tabPuntoEquilibrio" onclick="cambiarTab('tabPuntoEquilibrio')">🎯 Meta Mínima del Mes</button>
     <button class="tab-btn" data-tab="tabDashboard" onclick="cambiarTab('tabDashboard')">📊 Dashboard</button>
     <button class="tab-btn" data-tab="tabReportes" onclick="cambiarTab('tabReportes')">🗂️ Reportes</button>
   </div>
@@ -673,7 +673,7 @@
         </div>
         <button class="btn-primary" onclick="cargarPuntoEquilibrio()">Calcular</button>
       </div>
-      <div class="subtitulo">Los gastos fijos se toman de los gastos marcados como "Es un gasto fijo" en la pestaña 🧾 Registrar gasto. El costo variable y el precio de venta se calculan solos con tus ventas y tu Costeo del mes elegido.</div>
+      <div class="subtitulo">El costo de producción se toma de todos los lotes registrados en el mes. Los gastos fijos se toman de los gastos marcados como "Es un gasto fijo" en la pestaña 🧾 Registrar gasto. El precio promedio se calcula solo con tus ventas reales del mes elegido.</div>
     </div>
 
     <div id="peContenido">
@@ -1938,6 +1938,7 @@ async function enviarCuentaNueva(){
    PUNTO DE EQUILIBRIO
    ============================================================= */
 let PE_ACTUAL = null;
+let MM_ACTUAL = null;
 
 async function cargarPuntoEquilibrio(){
   const cont = document.getElementById("peContenido");
@@ -1946,12 +1947,17 @@ async function cargarPuntoEquilibrio(){
   cont.innerHTML = `<div class="estado-carga">Calculando…</div>`;
 
   try {
-    const res = await fetch(`${CONFIG.appsScriptUrl}?accion=puntoEquilibrio&mes=${mes}&anio=${anio}`);
-    PE_ACTUAL = await res.json();
+    const [resMeta, resPE] = await Promise.all([
+      fetch(`${CONFIG.appsScriptUrl}?accion=metaMinima&mes=${mes}&anio=${anio}`),
+      fetch(`${CONFIG.appsScriptUrl}?accion=puntoEquilibrio&mes=${mes}&anio=${anio}`)
+    ]);
+    MM_ACTUAL = await resMeta.json();
+    PE_ACTUAL = await resPE.json();
+    if (MM_ACTUAL.status === "error") throw new Error(MM_ACTUAL.mensaje);
     if (PE_ACTUAL.status === "error") throw new Error(PE_ACTUAL.mensaje);
-    renderPuntoEquilibrio();
+    renderMetaMinimaYAnalisis();
   } catch (err) {
-    cont.innerHTML = `<div class="msg-error">No se pudo calcular el Punto de Equilibrio. Revisa CONFIG.appsScriptUrl.</div>`;
+    cont.innerHTML = `<div class="msg-error">No se pudo calcular la Meta Mínima del Mes. Revisa CONFIG.appsScriptUrl.</div>`;
     console.error(err);
   }
 }
@@ -1960,19 +1966,71 @@ function fmtSol(n){
   return `S/ ${(Number(n) || 0).toFixed(2)}`;
 }
 
-function renderPuntoEquilibrio(){
-  const r = PE_ACTUAL;
+// Arma el contenido completo del tab: primero el indicador principal
+// (Meta mínima de ventas del mes), y debajo, en una sección aparte,
+// el Análisis financiero con el Punto de Equilibrio clásico.
+function renderMetaMinimaYAnalisis(){
   const cont = document.getElementById("peContenido");
+  cont.innerHTML = renderMetaMinimaHTML(MM_ACTUAL) + renderAnalisisFinancieroHTML(PE_ACTUAL);
+  recalcularSimuladorPE();
+}
 
-  if (r.unidadesVendidas === 0 && r.gastosFijos === 0) {
-    cont.innerHTML = `<div class="card"><div class="estado-vacio">
-      No hay ventas ni gastos fijos registrados para ${NOMBRES_MES[r.mes-1]} ${r.anio}.<br>
-      Registra ventas y marca al menos un gasto como "fijo" para calcular tu Punto de Equilibrio.
+function renderMetaMinimaHTML(m){
+  if (m.unidadesVendidas === 0 && m.totalARecuperar === 0) {
+    return `<div class="card"><div class="estado-vacio">
+      No hay lotes, ventas ni gastos fijos registrados para ${NOMBRES_MES[m.mes-1]} ${m.anio}.<br>
+      Registra un lote de producción y/o marca al menos un gasto como "fijo" para calcular tu Meta Mínima del Mes.
     </div></div>`;
-    return;
   }
 
-  cont.innerHTML = `
+  const cumplida = m.metaCumplida;
+
+  return `
+    <div class="card ${cumplida ? 'bueno' : ''}" style="border:2px solid var(--gold);">
+      <h3>🎯 Meta mínima del mes</h3>
+      <div class="estado-linea"><span>Costo de producción</span><span class="val">${fmtSol(m.costoProduccion)}</span></div>
+      <div class="estado-linea"><span>Gastos fijos</span><span class="val">${fmtSol(m.gastosFijos)}</span></div>
+      ${m.otrosEgresosObligatorios > 0 ? `<div class="estado-linea"><span>Otros egresos obligatorios</span><span class="val">${fmtSol(m.otrosEgresosObligatorios)}</span></div>` : ""}
+      <div class="estado-linea"><span><strong>Total a recuperar</strong></span><span class="val"><strong>${fmtSol(m.totalARecuperar)}</strong></span></div>
+      <div class="estado-linea"><span>Precio promedio de venta</span><span class="val">${fmtSol(m.precioVentaPromedio)}</span></div>
+
+      <div class="kpi-grid" style="margin-top:16px;">
+        <div class="kpi-caja"><div class="etq">Debes vender</div><div class="cif">${m.metaUnidades !== null ? Math.ceil(m.metaUnidades) + ' mochilas' : 'No aplica (aún no hay precio de venta promedio)'}</div></div>
+        <div class="kpi-caja"><div class="etq">o facturar</div><div class="cif">${fmtSol(m.metaFacturacion)}</div></div>
+      </div>
+      <div class="subtitulo" style="margin-top:10px;">para recuperar todo el dinero invertido durante ${NOMBRES_MES[m.mes-1]} ${m.anio}.</div>
+
+      <div class="kpi-grid" style="margin-top:16px;">
+        <div class="kpi-caja"><div class="etq">Ya vendiste</div><div class="cif">${m.unidadesVendidas} mochilas</div></div>
+        <div class="kpi-caja"><div class="etq">Ya facturaste</div><div class="cif">${fmtSol(m.ventasNetas)}</div></div>
+        <div class="kpi-caja ${cumplida ? 'bueno' : 'malo'}"><div class="etq">Avance de la meta</div><div class="cif">${m.porcentajeAvance !== null ? m.porcentajeAvance.toFixed(1) + '%' : '—'}</div></div>
+      </div>
+
+      ${cumplida
+        ? `<div class="alerta-costeo" style="background:var(--gold-soft); border-color:var(--gold);">✅ ¡Ya recuperaste todo el dinero invertido este mes! Lo que vendas de aquí en adelante es utilidad.</div>`
+        : `<div class="alerta-costeo" style="background:var(--gold-soft); border-color:var(--gold);">💡 Te faltan ${m.faltanteUnidades !== null ? Math.ceil(m.faltanteUnidades) : '—'} mochilas (${fmtSol(m.faltanteFacturacion)}) para recuperar todo el dinero invertido este mes.</div>`
+      }
+
+      ${m.modelosSinCosteo.length > 0 ? `
+        <div class="alerta-costeo">
+          ⚠️ Estos modelos vendidos no tienen costo registrado en "Costeo y Precios", así que no entraron en el precio promedio:
+          ${m.modelosSinCosteo.map(escapeHtml).join(", ")}.
+        </div>
+      ` : ""}
+    </div>
+  `;
+}
+
+// Sección secundaria: el Punto de Equilibrio clásico (Gastos Fijos ÷
+// Margen de Contribución) como indicador financiero, ya no como el
+// indicador principal del módulo.
+function renderAnalisisFinancieroHTML(r){
+  return `
+    <div class="card" style="margin-top:24px;">
+      <h3>📐 Análisis financiero</h3>
+      <div class="subtitulo">Este es el Punto de Equilibrio clásico (Gastos Fijos ÷ Margen de Contribución). Es un indicador financiero válido, pero no reemplaza la Meta Mínima del Mes de arriba: aquí los "gastos fijos" no incluyen el costo de producción del mes.</div>
+    </div>
+
     <div class="kpi-grid">
       <div class="kpi-caja"><div class="etq">Gastos fijos del mes</div><div class="cif">${fmtSol(r.gastosFijos)}</div></div>
       <div class="kpi-caja"><div class="etq">Costo variable unitario</div><div class="cif">${fmtSol(r.costoVariableUnitario)}</div></div>
@@ -1982,19 +2040,6 @@ function renderPuntoEquilibrio(){
       <div class="kpi-caja"><div class="etq">Punto de equilibrio (S/)</div><div class="cif">${r.peDinero !== null ? fmtSol(r.peDinero) : '—'}</div></div>
       <div class="kpi-caja ${r.margenSeguridad === null ? '' : (r.margenSeguridad >= 0 ? 'bueno' : 'malo')}"><div class="etq">Margen de seguridad</div><div class="cif">${r.margenSeguridad !== null ? r.margenSeguridad.toFixed(1) + '%' : '—'}</div></div>
       <div class="kpi-caja ${r.utilidadEsperada >= 0 ? 'bueno' : 'malo'}"><div class="etq">Utilidad esperada (real)</div><div class="cif">${fmtSol(r.utilidadEsperada)}</div></div>
-    </div>
-
-    <div class="card">
-      <h3>🟢 En palabras simples</h3>
-      <div class="estado-linea"><span>Necesitas vender</span><span class="val">${r.peUnidades !== null ? Math.ceil(r.peUnidades) + ' mochilas' : 'No aplica (margen de contribución negativo o nulo)'}</span></div>
-      <div class="estado-linea"><span>o facturar</span><span class="val">${r.peDinero !== null ? fmtSol(r.peDinero) : '—'}</span></div>
-      <div class="estado-linea"><span>para cubrir todos tus costos fijos y variables de ${NOMBRES_MES[r.mes-1]} ${r.anio}.</span><span class="val"></span></div>
-      ${r.modelosSinCosteo.length > 0 ? `
-        <div class="alerta-costeo">
-          ⚠️ Estos modelos vendidos no tienen costo registrado en "Costeo y Precios", así que no entraron en el costo variable promedio:
-          ${r.modelosSinCosteo.map(escapeHtml).join(", ")}.
-        </div>
-      ` : ""}
     </div>
 
     <div class="card">
@@ -2036,8 +2081,6 @@ function renderPuntoEquilibrio(){
       <canvas id="graficoPuntoEquilibrio"></canvas>
     </div>
   `;
-
-  recalcularSimuladorPE();
 }
 
 // Todo el cálculo del simulador es en el navegador (no llama al
