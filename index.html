@@ -188,6 +188,27 @@
   .barra-progreso-txt{display:flex; justify-content:space-between; font-size:12px; color:var(--gray); margin-bottom:14px;}
   .lote-card canvas{max-height:220px;}
 
+  /* Ventana de selección de lote al vender (Prompt 5) */
+  .modal-overlay{
+    position:fixed; inset:0; z-index:60; display:none; align-items:center; justify-content:center;
+    background:rgba(30,27,24,0.55); padding:20px;
+  }
+  .modal-box{
+    background:var(--paper); border-radius:16px; padding:24px; max-width:560px; width:100%;
+    max-height:86vh; overflow-y:auto; box-shadow:var(--shadow);
+  }
+  .modal-box h3{margin:0 0 4px; font-size:16px;}
+  .modal-box .cerrar{
+    float:right; border:none; background:none; font-size:20px; line-height:1; cursor:pointer; color:var(--gray);
+  }
+  .lote-select-list{display:flex; flex-direction:column; gap:10px;}
+  .lote-select-item{
+    display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
+    background:#fff; border:1.5px solid var(--line-strong); border-radius:12px; padding:14px 16px;
+  }
+  .lote-select-titulo{font-weight:700; font-size:14px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+  .lote-select-datos{font-size:12.5px; color:var(--gray); margin-top:4px; line-height:1.5;}
+
   @media print{
     #gate, .tabs, header.top .tag, .no-print{display:none !important;}
     #app{display:block !important; max-width:100%; padding:0;}
@@ -392,7 +413,7 @@
         </div>
         <div class="campo">
           <label>Modelo</label>
-          <select id="ventaModelo" onchange="autocompletarPrecioVenta()"></select>
+          <select id="ventaModelo" onchange="autocompletarPrecioVenta(); cargarLotesActivosVentaSeleccionada();"></select>
         </div>
         <div class="campo">
           <label>Cantidad</label>
@@ -413,6 +434,7 @@
           </select>
         </div>
       </div>
+      <div id="infoLoteVenta"></div>
       <button class="btn-primary" onclick="enviarVenta()">Registrar venta</button>
       <div id="msgVenta"></div>
     </div>
@@ -813,6 +835,11 @@ let PRODUCTOS = [];
 let COSTEO_LISTA = [];
 let LOTES_LISTA = [];
 let CUENTAS_LISTA = [];
+
+// (Prompt 5) — estado del selector de lote en el formulario de venta
+let LOTES_MODELO_VENTA = [];   // lotes activos del modelo elegido actualmente en el formulario
+let LOTE_ELEGIDO_VENTA = "";   // loteId elegido por el usuario (o auto, si solo hay uno)
+let VENTA_PENDIENTE = null;    // datos de la venta esperando a que el usuario elija lote en el modal
 
 /* =============================================================
    PROMPT 6 — Consistencia entre módulos
@@ -1301,6 +1328,42 @@ function calcularTotalVenta(){
   document.getElementById("ventaTotal").value = `S/ ${(cantidad * precio).toFixed(2)}`;
 }
 
+/* -------------------------------------------------------------
+   (Prompt 5) Al elegir un modelo, se revisa cuántos lotes activos
+   tiene. Si hay uno solo, se selecciona automáticamente sin pedir
+   nada. Si hay varios, se avisa que se elegirá al registrar la venta.
+   ------------------------------------------------------------- */
+async function cargarLotesActivosVentaSeleccionada(){
+  LOTE_ELEGIDO_VENTA = "";
+  LOTES_MODELO_VENTA = [];
+  const info = document.getElementById("infoLoteVenta");
+  info.innerHTML = "";
+
+  const modeloId = document.getElementById("ventaModelo").value;
+  const producto = PRODUCTOS.find(p => p.id === modeloId);
+  if (!producto) return;
+
+  try {
+    const res = await fetch(`${CONFIG.appsScriptUrl}?accion=lotesActivosModelo&modelo=${encodeURIComponent(producto.name)}`);
+    LOTES_MODELO_VENTA = await res.json();
+  } catch (err) {
+    console.error("No se pudieron cargar los lotes activos del modelo", err);
+    LOTES_MODELO_VENTA = [];
+    return;
+  }
+
+  if (!Array.isArray(LOTES_MODELO_VENTA)) { LOTES_MODELO_VENTA = []; return; }
+
+  if (LOTES_MODELO_VENTA.length === 1) {
+    LOTE_ELEGIDO_VENTA = LOTES_MODELO_VENTA[0].loteId;
+    info.innerHTML = `<div class="msg-ok" style="margin-top:12px;">Se usará el Lote ${escapeHtml(LOTE_ELEGIDO_VENTA)} (único lote activo de este modelo).</div>`;
+  } else if (LOTES_MODELO_VENTA.length > 1) {
+    info.innerHTML = `<div class="msg-error" style="background:var(--gold-soft); color:#8a6a1f; margin-top:12px;">
+      Este modelo tiene ${LOTES_MODELO_VENTA.length} lotes activos. Al registrar la venta, elegirás de cuál salió la mercancía.
+    </div>`;
+  }
+}
+
 async function enviarVenta(){
   const modeloId = document.getElementById("ventaModelo").value;
   const producto = PRODUCTOS.find(p => p.id === modeloId);
@@ -1312,7 +1375,8 @@ async function enviarVenta(){
     nombre:         producto ? producto.name : "",
     cantidad:       Number(document.getElementById("ventaCantidad").value) || 0,
     precioUnitario: Number(document.getElementById("ventaPrecio").value) || 0,
-    cuenta:         document.getElementById("ventaCuenta").value
+    cuenta:         document.getElementById("ventaCuenta").value,
+    loteId:         LOTE_ELEGIDO_VENTA || ""
   };
 
   if (!datos.nombre || datos.cantidad <= 0) {
@@ -1320,6 +1384,17 @@ async function enviarVenta(){
     return;
   }
 
+  // Si hay varios lotes activos y todavía no se eligió ninguno, se abre
+  // la ventana de selección en vez de enviar la venta directamente.
+  if (LOTES_MODELO_VENTA.length > 1 && !LOTE_ELEGIDO_VENTA) {
+    abrirModalSeleccionLote(LOTES_MODELO_VENTA, datos);
+    return;
+  }
+
+  await ejecutarRegistroVenta(datos, msg);
+}
+
+async function ejecutarRegistroVenta(datos, msg){
   msg.innerHTML = `<div class="estado-carga" style="padding:10px 0;">Guardando…</div>`;
   try {
     const res = await fetch(`${CONFIG.appsScriptUrl}?accion=registrarVenta`, {
@@ -1329,10 +1404,18 @@ async function enviarVenta(){
     });
     const data = await res.json();
     if (data.status === "ok") {
-      msg.innerHTML = `<div class="msg-ok">✔ Venta registrada: S/ ${data.total.toFixed(2)}</div>`;
+      msg.innerHTML = `<div class="msg-ok">✔ Venta registrada: S/ ${data.total.toFixed(2)}${resumenLotesUtilizados(data.lotesUtilizados)}</div>`;
       document.getElementById("ventaCantidad").value = 1;
       calcularTotalVenta();
+      LOTE_ELEGIDO_VENTA = "";
+      cargarLotesActivosVentaSeleccionada();
       cargarRegistrosRecientes();
+      if (typeof cargarLotes === "function") cargarLotes(); // refresca stock por lote si esa pestaña ya cargó
+    } else if (data.status === "seleccion_lote_requerida") {
+      // Red de seguridad: el stock de los lotes cambió entre que se
+      // consultó y que se intentó guardar. Se reabre el modal con la
+      // lista actualizada que manda el backend.
+      abrirModalSeleccionLote(data.lotes, datos);
     } else {
       msg.innerHTML = `<div class="msg-error">${escapeHtml(data.mensaje || "No se pudo registrar")}</div>`;
     }
@@ -1340,6 +1423,75 @@ async function enviarVenta(){
     msg.innerHTML = `<div class="msg-error">Error de conexión. Revisa CONFIG.appsScriptUrl.</div>`;
     console.error(err);
   }
+}
+
+function resumenLotesUtilizados(detalle){
+  if (!Array.isArray(detalle) || detalle.length <= 1) return "";
+  const partes = detalle.map(x => `${x.loteId ? "Lote " + escapeHtml(x.loteId) : "stock previo sin lote"}: ${x.cantidad} unid.`);
+  return ` <span style="font-weight:400;">— repartida así: ${partes.join(" + ")}</span>`;
+}
+
+/* -------------------------------------------------------------
+   (Prompt 5) Ventana de selección de lote. El usuario ve, por cada
+   lote activo: número de lote, fecha de producción, cantidad
+   disponible, costo unitario, precio sugerido y % de recuperación de
+   la inversión. Elige uno; si la cantidad supera su stock, el sistema
+   completa automáticamente con los demás lotes disponibles.
+   ------------------------------------------------------------- */
+function abrirModalSeleccionLote(lotes, datosVentaPendiente){
+  if (!Array.isArray(lotes) || !lotes.length) {
+    document.getElementById("msgVenta").innerHTML = `<div class="msg-error">No hay lotes activos con stock para este modelo.</div>`;
+    return;
+  }
+  VENTA_PENDIENTE = datosVentaPendiente;
+  const body = document.getElementById("modalLoteBody");
+  body.innerHTML = `
+    <p class="subtitulo" style="margin:0 0 14px;">
+      El modelo <b>${escapeHtml(datosVentaPendiente.nombre)}</b> tiene varios lotes activos. Elige de cuál salió la mercancía.
+      Si la cantidad vendida (${datosVentaPendiente.cantidad}) supera el stock del lote elegido, el resto se completará
+      automáticamente con los demás lotes disponibles.
+    </p>
+    <div class="lote-select-list">
+      ${lotes.map(l => `
+        <div class="lote-select-item">
+          <div class="lote-select-info">
+            <div class="lote-select-titulo">
+              Lote ${escapeHtml(l.loteId)}
+              <span class="pill ${pillClaseRecuperacion(l.capitalRecuperadoPct)}">${l.capitalRecuperadoPct.toFixed(1)}% recuperado</span>
+            </div>
+            <div class="lote-select-datos">
+              Producido: ${l.fecha} · Disponible: <b>${l.disponible}</b> unid.<br>
+              Costo unitario: S/ ${l.costoPorUnidad.toFixed(2)} · Precio sugerido: S/ ${l.precioVentaSugerido.toFixed(2)}
+            </div>
+          </div>
+          <button class="btn-primary" style="white-space:nowrap;" onclick="elegirLoteVenta('${escapeHtml(l.loteId)}')">Usar este lote</button>
+        </div>
+      `).join("")}
+    </div>
+  `;
+  document.getElementById("modalLoteVenta").style.display = "flex";
+}
+
+function pillClaseRecuperacion(pct){
+  if (pct >= 100) return "bueno";
+  if (pct > 0) return "regular";
+  return "malo";
+}
+
+function cerrarModalLote(){
+  document.getElementById("modalLoteVenta").style.display = "none";
+  VENTA_PENDIENTE = null;
+}
+
+async function elegirLoteVenta(loteId){
+  const datos = VENTA_PENDIENTE;
+  document.getElementById("modalLoteVenta").style.display = "none";
+  VENTA_PENDIENTE = null;
+  if (!datos) return;
+
+  LOTE_ELEGIDO_VENTA = loteId;
+  datos.loteId = loteId;
+  await ejecutarRegistroVenta(datos, document.getElementById("msgVenta"));
 }
 
 /* =============================================================
@@ -2442,5 +2594,14 @@ function escapeHtml(str){
     .replace(/"/g, "&quot;");
 }
 </script>
+<!-- ───────── MODAL: SELECCIÓN DE LOTE AL VENDER (Prompt 5) ───────── -->
+<div class="modal-overlay" id="modalLoteVenta">
+  <div class="modal-box">
+    <button class="cerrar" onclick="cerrarModalLote()" aria-label="Cerrar">&times;</button>
+    <h3>¿De qué lote salió la mercancía?</h3>
+    <div id="modalLoteBody"></div>
+  </div>
+</div>
+
 </body>
 </html>
