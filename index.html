@@ -173,6 +173,21 @@
   .grafico-caja h4{margin:0 0 14px; font-size:14px;}
   .grafico-caja canvas{max-height:280px;}
 
+  /* Recuperación de la Inversión por Lote */
+  .lote-card{background:#fff; border:1px solid var(--line); border-radius:16px; padding:20px; box-shadow:var(--shadow); margin-bottom:18px;}
+  .lote-card .cab{display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px; margin-bottom:14px;}
+  .lote-card .cab h4{margin:0; font-size:16px;}
+  .lote-card .cab .sub{font-size:12.5px; color:var(--gray); margin-top:2px;}
+  .lote-stats{display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:14px;}
+  @media (max-width:760px){ .lote-stats{grid-template-columns:repeat(2,1fr);} }
+  .lote-stats .item{background:var(--paper-warm); border-radius:10px; padding:10px 12px;}
+  .lote-stats .item .etq{font-size:10.5px; color:var(--gray); text-transform:uppercase; letter-spacing:0.03em; margin-bottom:3px;}
+  .lote-stats .item .cif{font-size:15px; font-weight:800;}
+  .barra-progreso{background:var(--paper-warm); border-radius:999px; height:16px; overflow:hidden; margin-bottom:6px;}
+  .barra-progreso .relleno{height:100%; border-radius:999px; transition:width .3s ease;}
+  .barra-progreso-txt{display:flex; justify-content:space-between; font-size:12px; color:var(--gray); margin-bottom:14px;}
+  .lote-card canvas{max-height:220px;}
+
   @media print{
     #gate, .tabs, header.top .tag, .no-print{display:none !important;}
     #app{display:block !important; max-width:100%; padding:0;}
@@ -205,6 +220,7 @@
     <button class="tab-btn" data-tab="tabVenta" onclick="cambiarTab('tabVenta')">💰 Registrar venta</button>
     <button class="tab-btn" data-tab="tabGasto" onclick="cambiarTab('tabGasto')">🧾 Registrar gasto</button>
     <button class="tab-btn" data-tab="tabInventario" onclick="cambiarTab('tabInventario')">📦 Inventario</button>
+    <button class="tab-btn" data-tab="tabRecuperacionLotes" onclick="cambiarTab('tabRecuperacionLotes')">🎯 Recuperación por Lote</button>
     <button class="tab-btn" data-tab="tabFlujoCaja" onclick="cambiarTab('tabFlujoCaja')">💵 Flujo de Caja</button>
     <button class="tab-btn" data-tab="tabResultados" onclick="cambiarTab('tabResultados')">📈 Estado de Resultados</button>
     <button class="tab-btn" data-tab="tabPuntoEquilibrio" onclick="cambiarTab('tabPuntoEquilibrio')">💰 Meta de Facturación</button>
@@ -533,6 +549,18 @@
       </div>
       <div id="tablaKardex"><div class="estado-carga">Cargando…</div></div>
     </div>
+  </div>
+
+  <!-- ───────── TAB: RECUPERACIÓN DE LA INVERSIÓN POR LOTE ───────── -->
+  <div class="tab-panel" id="tabRecuperacionLotes">
+    <div class="card">
+      <h3>🎯 Recuperación de la Inversión por Lote</h3>
+      <div class="subtitulo">
+        Responde una sola pregunta por cada lote: ¿el dinero invertido en fabricarlo ya regresó completamente a la empresa? No mide utilidad, rentabilidad ni punto de equilibrio — eso lo sigue mostrando el Estado de Resultados. Se calcula solo, a partir de las ventas reales de cada lote (nunca promedios ni estimaciones).
+      </div>
+    </div>
+
+    <div id="tablaRecuperacionLotes"><div class="estado-carga">Cargando…</div></div>
   </div>
 
   <!-- ───────── TAB: FLUJO DE CAJA ───────── -->
@@ -915,6 +943,7 @@ async function cargarProductos(){
 let DASHBOARD_CARGADO = false;
 let PUNTO_EQUILIBRIO_CARGADO = false;
 let FLUJO_CAJA_CARGADO = false;
+let RECUPERACION_LOTES_CARGADA = false;
 
 function cambiarTab(id){
   document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("activo", b.dataset.tab === id));
@@ -930,6 +959,10 @@ function cambiarTab(id){
   if (id === "tabFlujoCaja" && !FLUJO_CAJA_CARGADO) {
     FLUJO_CAJA_CARGADO = true;
     cargarFlujoCaja();
+  }
+  if (id === "tabRecuperacionLotes" && !RECUPERACION_LOTES_CARGADA) {
+    RECUPERACION_LOTES_CARGADA = true;
+    cargarRecuperacionLotes();
   }
 }
 
@@ -2300,6 +2333,102 @@ function renderKardex(lista){
         <td>${escapeHtml(m.nota)}</td>
       </tr>`).join("")}
     </tbody></table>`;
+}
+
+/* =============================================================
+   RECUPERACIÓN DE LA INVERSIÓN POR LOTE
+   ============================================================= */
+async function cargarRecuperacionLotes(){
+  const cont = document.getElementById("tablaRecuperacionLotes");
+  cont.innerHTML = `<div class="estado-carga">Cargando…</div>`;
+  let lista = [];
+  try {
+    const res = await fetch(`${CONFIG.appsScriptUrl}?accion=recuperacionLotes`);
+    lista = await res.json();
+  } catch (err) {
+    console.error("No se pudo cargar la recuperación por lote", err);
+    cont.innerHTML = `<div class="estado-vacio">No se pudo cargar la información. Revisa tu conexión.</div>`;
+    return;
+  }
+  renderRecuperacionLotes(lista);
+}
+
+function renderRecuperacionLotes(lista){
+  const cont = document.getElementById("tablaRecuperacionLotes");
+  if (!Array.isArray(lista) || !lista.length) {
+    cont.innerHTML = `<div class="card"><div class="estado-vacio">Aún no hay lotes registrados. Registra un lote en la pestaña "Costeo y Precios" para verlo aquí.</div></div>`;
+    return;
+  }
+
+  cont.innerHTML = lista.map(l => `
+    <div class="lote-card">
+      <div class="cab">
+        <div>
+          <h4>${escapeHtml(l.modelo)} · Lote ${escapeHtml(l.loteId)}</h4>
+          <div class="sub">Producido el ${l.fecha} · ${l.cantidadProducida} unidad(es)</div>
+        </div>
+        ${pillEstadoLote(l.estado)}
+      </div>
+
+      <div class="lote-stats">
+        <div class="item"><div class="etq">Cantidad vendida</div><div class="cif">${l.cantidadVendida}</div></div>
+        <div class="item"><div class="etq">Stock disponible</div><div class="cif">${l.stockDisponible}</div></div>
+        <div class="item"><div class="etq">Costo total del lote</div><div class="cif">S/ ${l.costoTotalLote.toFixed(2)}</div></div>
+        <div class="item"><div class="etq">Ventas acumuladas</div><div class="cif">S/ ${l.ventasAcumuladas.toFixed(2)}</div></div>
+        <div class="item"><div class="etq">Capital pendiente</div><div class="cif">S/ ${l.capitalPendiente.toFixed(2)}</div></div>
+        <div class="item"><div class="etq">Excedente generado</div><div class="cif">S/ ${l.excedente.toFixed(2)}</div></div>
+      </div>
+
+      <div class="barra-progreso">
+        <div class="relleno" style="width:${Math.min(100, l.capitalRecuperadoPct).toFixed(1)}%; background:${colorBarraLote(l.estado)};"></div>
+      </div>
+      <div class="barra-progreso-txt"><span>Capital recuperado</span><span>${l.capitalRecuperadoPct.toFixed(1)}%</span></div>
+
+      <canvas id="${idCanvasLote(l.loteId)}"></canvas>
+    </div>
+  `).join("");
+
+  lista.forEach(l => construirGraficoLote(l));
+}
+
+function idCanvasLote(loteId){
+  return "graficoLote_" + String(loteId).replace(/[^a-zA-Z0-9]/g, "_");
+}
+
+function pillEstadoLote(estado){
+  if (estado === "recuperado") return `<span class="pill bueno">🟢 Capital recuperado</span>`;
+  if (estado === "en_proceso") return `<span class="pill regular">🟡 Recuperación en proceso</span>`;
+  return `<span class="pill malo">🔴 No recuperado</span>`;
+}
+
+function colorBarraLote(estado){
+  if (estado === "recuperado") return "var(--green)";
+  if (estado === "en_proceso") return "var(--gold)";
+  return "var(--red)";
+}
+
+function construirGraficoLote(l){
+  const canvasId = idCanvasLote(l.loteId);
+  destruirGrafico(canvasId);
+  const ctx = document.getElementById(canvasId);
+  if (!ctx) return;
+
+  const historial = Array.isArray(l.historialVentas) ? l.historialVentas : [];
+  const etiquetas = [l.fecha, ...historial.map(h => h.fecha)];
+  const datosVentas = [0, ...historial.map(h => h.acumulado)];
+  const datosCosto = etiquetas.map(() => l.costoTotalLote);
+
+  GRAFICOS_DASH[canvasId] = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: etiquetas,
+      datasets: [
+        { label: "Ventas acumuladas", data: datosVentas, borderColor: "#2E6DA4", backgroundColor: "rgba(46,109,164,0.12)", tension: 0.2, fill: true },
+        { label: "Costo del lote", data: datosCosto, borderColor: "#C0392B", borderDash: [6, 4], pointRadius: 0, fill: false }
+      ]
+    },
+    options: { responsive: true, plugins: { legend: { position: "bottom" } } }
+  });
 }
 
 /* =============================================================
