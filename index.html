@@ -787,6 +787,41 @@ let LOTES_LISTA = [];
 let CUENTAS_LISTA = [];
 
 /* =============================================================
+   PROMPT 6 — Consistencia entre módulos
+   --------------------------------------------------------------
+   ÚNICA función que deriva utilidades y márgenes a partir de un
+   resultado de "resumenMensual" (ventasNetas, costoVentas,
+   gastosPorTipo). Dashboard, Estado de Resultados, Reportes y el
+   gráfico de tendencia SIEMPRE deben llamar a esta función en vez
+   de repetir la fórmula — así las cifras nunca pueden divergir
+   entre módulos. No calcula nada por su cuenta: solo aplica las
+   restas sobre lo que ya devuelve el backend (que es, a su vez, la
+   única fuente de ventas/costo de ventas/gastos, ver Prompt 3 y 5).
+   ============================================================= */
+function calcularUtilidades(r, pctImpuesto, ori){
+  pctImpuesto = Number(pctImpuesto) || 0;
+  ori = Number(ori) || 0;
+
+  const utilidadBruta     = r.ventasNetas - r.costoVentas;
+  const utilidadOperativa = utilidadBruta - r.gastosPorTipo.venta - r.gastosPorTipo.administrativo - r.gastosPorTipo.otro;
+  const utilidadAntesImp  = utilidadOperativa - r.gastosPorTipo.financiero;
+  const impuesto     = utilidadAntesImp > 0 ? utilidadAntesImp * (pctImpuesto / 100) : 0;
+  const utilidadNeta = utilidadAntesImp - impuesto;
+  const resultadoIntegral = utilidadNeta + ori;
+
+  const margenBruto = r.ventasNetas > 0 ? (utilidadBruta / r.ventasNetas) * 100 : 0;
+  const margenNeto  = r.ventasNetas > 0 ? (utilidadNeta / r.ventasNetas) * 100 : 0;
+
+  return {
+    ventasNetas: r.ventasNetas, costoVentas: r.costoVentas,
+    utilidadBruta, utilidadOperativa, utilidadAntesImp,
+    pctImpuesto, impuesto, utilidadNeta,
+    ori, resultadoIntegral,
+    margenBruto, margenNeto
+  };
+}
+
+/* =============================================================
    ACCESO
    ============================================================= */
 function verificarAcceso(){
@@ -1489,23 +1524,17 @@ function renderEstadoResultados(){
 
 function recalcularFinal(){
   const r = RESUMEN_ACTUAL;
-  const utilidadBruta     = r.ventasNetas - r.costoVentas;
-  const utilidadOperativa = utilidadBruta - r.gastosPorTipo.venta - r.gastosPorTipo.administrativo - r.gastosPorTipo.otro;
-  const utilidadAntesImp  = utilidadOperativa - r.gastosPorTipo.financiero;
+  const pctImpuesto = document.getElementById("pctImpuesto").value;
+  const ori = document.getElementById("valORI").value;
+  const u = calcularUtilidades(r, pctImpuesto, ori);
 
-  const pctImpuesto = Number(document.getElementById("pctImpuesto").value) || 0;
-  const impuesto    = utilidadAntesImp > 0 ? utilidadAntesImp * (pctImpuesto / 100) : 0;
-  const utilidadNeta = utilidadAntesImp - impuesto;
-
-  const ori = Number(document.getElementById("valORI").value) || 0;
-  const resultadoIntegral = utilidadNeta + ori;
-
-  document.getElementById("valUtilidadBruta").textContent      = `S/ ${utilidadBruta.toFixed(2)}`;
-  document.getElementById("valUtilidadOperativa").textContent  = `S/ ${utilidadOperativa.toFixed(2)}`;
-  document.getElementById("valUtilidadAntesImp").textContent   = `S/ ${utilidadAntesImp.toFixed(2)}`;
-  document.getElementById("valImpuesto").textContent           = `S/ ${impuesto.toFixed(2)}`;
-  document.getElementById("valUtilidadNeta").textContent       = `S/ ${utilidadNeta.toFixed(2)}`;
-  document.getElementById("valResultadoIntegral").textContent  = `S/ ${resultadoIntegral.toFixed(2)}`;
+  document.getElementById("valUtilidadBruta").textContent      = `S/ ${u.utilidadBruta.toFixed(2)}`;
+  document.getElementById("valUtilidadOperativa").textContent  = `S/ ${u.utilidadOperativa.toFixed(2)}`;
+  document.getElementById("valUtilidadAntesImp").textContent   = `S/ ${u.utilidadAntesImp.toFixed(2)}`;
+  document.getElementById("valImpuesto").textContent           = `S/ ${u.impuesto.toFixed(2)}`;
+  document.getElementById("valUtilidadNeta").textContent       = `S/ ${u.utilidadNeta.toFixed(2)}`;
+  document.getElementById("valResultadoIntegral").textContent  = `S/ ${u.resultadoIntegral.toFixed(2)}`;
+  const resultadoIntegral = u.resultadoIntegral;
 
   const banner = document.getElementById("bannerResultado");
   if (resultadoIntegral >= 0) {
@@ -1570,11 +1599,14 @@ async function cargarDashboard(){
     const { ventas } = datosMes;
     const inventario = Array.isArray(resInv) ? resInv : [];
 
-    const utilidadBruta     = r.ventasNetas - r.costoVentas;
-    const utilidadOperativa = utilidadBruta - r.gastosPorTipo.venta - r.gastosPorTipo.administrativo - r.gastosPorTipo.otro;
-    const utilidadAntesImp  = utilidadOperativa - r.gastosPorTipo.financiero;
-    const margenBruto = r.ventasNetas > 0 ? (utilidadBruta / r.ventasNetas) * 100 : 0;
-    const margenNeto  = r.ventasNetas > 0 ? (utilidadAntesImp / r.ventasNetas) * 100 : 0;
+    // Mismos números que el Estado de Resultados y los Reportes: el
+    // Dashboard no aplica impuesto ni ORI (0% por defecto), por eso
+    // "Utilidad del mes" y "Margen neto" reflejan la utilidad antes
+    // de impuestos, consistente con calcularUtilidades(r, 0, 0).
+    const u = calcularUtilidades(r, 0, 0);
+    const utilidadAntesImp = u.utilidadAntesImp;
+    const margenBruto = u.margenBruto;
+    const margenNeto  = u.margenNeto;
 
     const inventarioValorizado = inventario.reduce((s, m) => s + (m.valorTotal || 0), 0);
     const stockBajo = inventario.filter(m => m.stockBajo);
@@ -1662,11 +1694,7 @@ async function construirGraficoTendencia(mesActual, anioActual){
   ));
   const etiquetas = meses.map(({mes, anio}) => `${NOMBRES_MES[mes-1].slice(0,3)} ${anio}`);
   const ventas = resultados.map(r => r.ventasNetas);
-  const utilidades = resultados.map(r => {
-    const ub = r.ventasNetas - r.costoVentas;
-    const uo = ub - r.gastosPorTipo.venta - r.gastosPorTipo.administrativo - r.gastosPorTipo.otro;
-    return uo - r.gastosPorTipo.financiero;
-  });
+  const utilidades = resultados.map(r => calcularUtilidades(r, 0, 0).utilidadAntesImp);
 
   destruirGrafico("tendencia");
   const ctx = document.getElementById("graficoTendencia");
@@ -1996,14 +2024,7 @@ function renderMetaMinimaHTML(m){
         <span class="val">${m.unidadesEstimadas !== null ? '≈ ' + Math.ceil(m.unidadesEstimadas) + ' mochilas' : 'No aplica (aún no hay precio de venta promedio)'}</span>
       </div>
 
-      ${m.modelosSinCosteo.length > 0 ? `
-        <div class="alerta-costeo">
-          ⚠️ Estos modelos vendidos no tienen costo registrado en "Costeo y Precios" (sí cuentan para la facturación y la meta, pero afecta el precio promedio de referencia y el costeo de otros módulos):
-          ${m.modelosSinCosteo.map(escapeHtml).join(", ")}.
-        </div>
-      ` : ""}
-
-      <div class="subtitulo" style="margin-top:14px; opacity:.8;">Este módulo no calcula utilidad ni pérdida. Para ver el resultado económico del mes (Ventas Netas − Costo de Ventas − Gastos Operativos), revisa la pestaña 📈 Estado de Resultados.</div>
+      <div class="subtitulo" style="margin-top:14px; opacity:.8;">Este módulo no calcula utilidad ni pérdida, y no usa costo de producción, costo de ventas ni inventario. Para ver el resultado económico del mes (Ventas Netas − Costo de Ventas − Gastos Operativos), revisa la pestaña 📈 Estado de Resultados.</div>
     </div>
   `;
 }
@@ -2017,22 +2038,23 @@ async function obtenerDatosReporte(tipo){
 
   if (tipo === "estadoResultados") {
     const r = await fetch(`${CONFIG.appsScriptUrl}?accion=resumenMensual&mes=${mes}&anio=${anio}`).then(x => x.json());
-    const utilidadBruta     = r.ventasNetas - r.costoVentas;
-    const utilidadOperativa = utilidadBruta - r.gastosPorTipo.venta - r.gastosPorTipo.administrativo - r.gastosPorTipo.otro;
-    const utilidadAntesImp  = utilidadOperativa - r.gastosPorTipo.financiero;
+    // Mismas cifras que el Estado de Resultados y el Dashboard: el
+    // reporte exportado no aplica impuesto ni ORI, solo el tramo
+    // "hasta utilidad antes de impuestos".
+    const u = calcularUtilidades(r, 0, 0);
     return {
       titulo: `Estado de Resultados — ${NOMBRES_MES[r.mes-1]} ${r.anio}`,
       columnas: ["Concepto", "Monto (S/)"],
       filas: [
         ["Ventas netas", r.ventasNetas.toFixed(2)],
         ["(-) Costo de ventas", r.costoVentas.toFixed(2)],
-        ["= Utilidad bruta", utilidadBruta.toFixed(2)],
+        ["= Utilidad bruta", u.utilidadBruta.toFixed(2)],
         ["(-) Gastos de venta / marketing", r.gastosPorTipo.venta.toFixed(2)],
         ["(-) Gastos administrativos", r.gastosPorTipo.administrativo.toFixed(2)],
         ["(-) Otros gastos operativos", r.gastosPorTipo.otro.toFixed(2)],
-        ["= Utilidad operativa", utilidadOperativa.toFixed(2)],
+        ["= Utilidad operativa", u.utilidadOperativa.toFixed(2)],
         ["(-) Gastos financieros", r.gastosPorTipo.financiero.toFixed(2)],
-        ["= Utilidad antes de impuestos", utilidadAntesImp.toFixed(2)]
+        ["= Utilidad antes de impuestos", u.utilidadAntesImp.toFixed(2)]
       ]
     };
   }
