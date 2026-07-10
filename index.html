@@ -214,9 +214,52 @@
     #app{display:block !important; max-width:100%; padding:0;}
     .card{box-shadow:none; border:none;}
   }
+
+  /* ── INDICADOR DE ACTUALIZACIÓN EN SEGUNDO PLANO ──────────────────────── */
+  #indicadorCarga{
+    position:fixed; top:14px; right:14px; z-index:80; display:none; align-items:center; gap:10px;
+    background:var(--ink); color:#fff; padding:10px 16px; border-radius:999px; font-size:13px;
+    box-shadow:var(--shadow); opacity:0; transform:translateY(-6px); transition:opacity .18s, transform .18s;
+  }
+  #indicadorCarga.visible{display:flex; opacity:1; transform:translateY(0);}
+  #indicadorCarga .spinner{
+    width:14px; height:14px; border-radius:50%; border:2px solid rgba(255,255,255,0.35);
+    border-top-color:#fff; animation:girar .7s linear infinite; flex:none;
+  }
+  @keyframes girar{ to{ transform:rotate(360deg); } }
+
+  /* Barra de progreso indeterminada, sutil, debajo del indicador */
+  #barraProgreso{
+    position:fixed; top:0; left:0; height:3px; width:100%; z-index:80; overflow:hidden; display:none;
+  }
+  #barraProgreso.visible{display:block;}
+  #barraProgreso::after{
+    content:""; position:absolute; top:0; left:-40%; width:40%; height:100%;
+    background:var(--gold); animation:avanzar 1.1s ease-in-out infinite;
+  }
+  @keyframes avanzar{ 0%{left:-40%;} 100%{left:100%;} }
+
+  /* ── NOTIFICACIONES BREVES (toasts) ───────────────────────────────────── */
+  #toastCont{
+    position:fixed; bottom:18px; left:50%; transform:translateX(-50%); z-index:90;
+    display:flex; flex-direction:column; gap:8px; align-items:center; pointer-events:none;
+  }
+  .toast{
+    background:var(--ink); color:#fff; padding:10px 18px; border-radius:999px; font-size:13.5px;
+    box-shadow:var(--shadow); opacity:0; transform:translateY(8px); transition:opacity .2s, transform .2s;
+    max-width:88vw;
+  }
+  .toast.visible{opacity:1; transform:translateY(0);}
+  .toast.toast-ok{background:var(--green-deep);}
+  .toast.toast-error{background:var(--red-deep);}
 </style>
 </head>
 <body>
+
+<!-- Indicadores globales de actualización en segundo plano (no bloquean la UI) -->
+<div id="barraProgreso"></div>
+<div id="indicadorCarga"><span class="spinner"></span><span id="indicadorCargaTexto">Actualizando información…</span></div>
+<div id="toastCont"></div>
 
 <!-- ═══════════════ ACCESO ═══════════════ -->
 <div id="gate">
@@ -855,6 +898,107 @@ let COSTEO_LISTA = [];
 let LOTES_LISTA = [];
 let CUENTAS_LISTA = [];
 
+/* =============================================================
+   INDICADORES DE CARGA Y NOTIFICACIONES (actualización en segundo
+   plano, sin recargar la página ni bloquear al usuario)
+   ============================================================= */
+let _contadorCargasActivas = 0;
+
+function mostrarIndicadorCarga(mensaje){
+  _contadorCargasActivas++;
+  const ind = document.getElementById("indicadorCarga");
+  const barra = document.getElementById("barraProgreso");
+  document.getElementById("indicadorCargaTexto").textContent = mensaje || "Actualizando información…";
+  ind.classList.add("visible");
+  barra.classList.add("visible");
+}
+
+function ocultarIndicadorCarga(){
+  _contadorCargasActivas = Math.max(0, _contadorCargasActivas - 1);
+  if (_contadorCargasActivas === 0) {
+    document.getElementById("indicadorCarga").classList.remove("visible");
+    document.getElementById("barraProgreso").classList.remove("visible");
+  }
+}
+
+function mostrarNotificacion(mensaje, tipo){
+  const cont = document.getElementById("toastCont");
+  const t = document.createElement("div");
+  t.className = `toast ${tipo === "error" ? "toast-error" : tipo === "ok" ? "toast-ok" : ""}`;
+  t.textContent = mensaje;
+  cont.appendChild(t);
+  requestAnimationFrame(() => t.classList.add("visible"));
+  setTimeout(() => {
+    t.classList.remove("visible");
+    setTimeout(() => t.remove(), 250);
+  }, 2600);
+}
+
+/* =============================================================
+   REGISTRO DE MÓDULOS — carga perezosa (lazy loading) +
+   actualización automática y selectiva tras guardar operaciones.
+   --------------------------------------------------------------
+   Cada módulo se carga UNA sola vez, la primera vez que su pestaña
+   se abre. Tras guardar una operación (venta, gasto, lote, etc.)
+   se invalida solo el/los módulo(s) realmente afectados:
+     - si su pestaña está visible en ese momento, se refresca al
+       instante (mostrando el indicador "Actualizando información…"),
+     - si no está visible, simplemente se marca como desactualizado
+       y se recargará solo cuando el usuario la abra.
+   Así nunca hace falta F5 ni se piden datos que nadie está mirando.
+   ============================================================= */
+const MODULOS = {
+  dashboard:         { tab: "tabDashboard",         cargado: false, cargar: () => cargarDashboard() },
+  puntoEquilibrio:   { tab: "tabPuntoEquilibrio",    cargado: false, cargar: () => cargarPuntoEquilibrio() },
+  flujoCaja:         { tab: "tabFlujoCaja",          cargado: false, cargar: () => cargarFlujoCaja() },
+  recuperacionLotes: { tab: "tabRecuperacionLotes",  cargado: false, cargar: () => cargarRecuperacionLotes() },
+  inventario:        { tab: "tabInventario",         cargado: false, cargar: () => cargarInventarioCompleto() },
+  // "registros" (ventas/gastos del mes) es compartido por dos pestañas
+  registros:         { tab: null,                    cargado: false, cargar: () => cargarRegistrosRecientes() }
+};
+
+// Carga el o los módulos que correspondan a la pestaña recién abierta,
+// solo si todavía no se habían cargado (reutiliza lo ya cargado).
+function cargarModulosDeTab(tabId){
+  Object.values(MODULOS).forEach(m => {
+    if (m.tab === tabId && !m.cargado) {
+      m.cargado = true;
+      m.cargar();
+    }
+  });
+  if ((tabId === "tabVenta" || tabId === "tabGasto") && !MODULOS.registros.cargado) {
+    MODULOS.registros.cargado = true;
+    MODULOS.registros.cargar();
+  }
+}
+
+// Marca un módulo como desactualizado. Si su pestaña está visible en
+// este momento, lo recarga de inmediato (con indicador); si no,
+// queda pendiente y se recarga solo cuando el usuario la abra.
+function invalidarModulo(nombre){
+  const m = MODULOS[nombre];
+  if (!m) return;
+  m.cargado = false;
+  const panelActivo = document.querySelector(".tab-panel.activo");
+  if (!panelActivo) return;
+  const esVisible = m.tab === panelActivo.id ||
+    (nombre === "registros" && (panelActivo.id === "tabVenta" || panelActivo.id === "tabGasto"));
+  if (esVisible) {
+    m.cargado = true;
+    mostrarIndicadorCarga("Actualizando información…");
+    Promise.resolve(m.cargar())
+      .then(() => mostrarNotificacion("Información actualizada", "ok"))
+      .catch(() => mostrarNotificacion("No se pudo actualizar todo. Reintenta.", "error"))
+      .finally(ocultarIndicadorCarga);
+  }
+}
+
+// Azúcar sintáctica para invalidar varios módulos a la vez tras una
+// misma operación (ej. una venta afecta Dashboard + Inventario + Caja).
+function invalidarModulos(...nombres){
+  nombres.forEach(invalidarModulo);
+}
+
 // (Prompt 5) — estado del selector de lote en el formulario de venta
 let LOTES_MODELO_VENTA = [];   // lotes activos del modelo elegido actualmente en el formulario
 let LOTE_ELEGIDO_VENTA = "";   // loteId elegido por el usuario (o auto, si solo hay uno)
@@ -954,20 +1098,27 @@ async function inicializarApp(){
   prellenarFechasFlujoCaja();
   document.getElementById("movCajaFecha").value = isoHoy();
 
-  await cargarCosteo();
-  await cargarProductos();
-  await cargarLotes();
-  await cargarCuentas();
+  // Carga inicial mínima: solo lo que necesita la pestaña por defecto
+  // (Costeo y Precios) más los catálogos livianos (productos, cuentas)
+  // que alimentan selects en varias pestañas. Todo lo demás (Dashboard,
+  // Inventario, Flujo de Caja, Recuperación por Lote, Ventas/Gastos
+  // recientes, Meta de Facturación) se carga perezosamente la primera
+  // vez que el usuario abre esa pestaña — ver MODULOS / cambiarTab().
+  await Promise.all([ cargarCosteo(), cargarProductos(), cargarLotes(), cargarCuentas() ]);
   poblarCategoriasVenta();
-  cargarRegistrosRecientes();
   document.getElementById("loteFecha").value = isoHoy();
 
   document.getElementById("invFecha").value = isoHoy();
   actualizarCamposMovimiento();
-  cargarInventario();
-  cargarKardex();
 
   document.getElementById("invIniFecha").value = isoHoy();
+}
+
+// Carga en paralelo el estado del inventario y el kardex (ambos viven
+// en la pestaña "Inventario"); se reutiliza tanto en la carga perezosa
+// inicial como en las actualizaciones tras registrar movimientos.
+async function cargarInventarioCompleto(){
+  await Promise.all([ cargarInventario(), cargarKardex() ]);
 }
 
 function isoHoy(){
@@ -988,30 +1139,12 @@ async function cargarProductos(){
 /* =============================================================
    TABS
    ============================================================= */
-let DASHBOARD_CARGADO = false;
-let PUNTO_EQUILIBRIO_CARGADO = false;
-let FLUJO_CAJA_CARGADO = false;
-let RECUPERACION_LOTES_CARGADA = false;
-
+// (Las banderas de "¿ya se cargó esta pestaña?" ahora viven en el
+// registro MODULOS, junto con la lógica de invalidación — ver arriba.)
 function cambiarTab(id){
   document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("activo", b.dataset.tab === id));
   document.querySelectorAll(".tab-panel").forEach(p => p.classList.toggle("activo", p.id === id));
-  if (id === "tabDashboard" && !DASHBOARD_CARGADO) {
-    DASHBOARD_CARGADO = true;
-    cargarDashboard();
-  }
-  if (id === "tabPuntoEquilibrio" && !PUNTO_EQUILIBRIO_CARGADO) {
-    PUNTO_EQUILIBRIO_CARGADO = true;
-    cargarPuntoEquilibrio();
-  }
-  if (id === "tabFlujoCaja" && !FLUJO_CAJA_CARGADO) {
-    FLUJO_CAJA_CARGADO = true;
-    cargarFlujoCaja();
-  }
-  if (id === "tabRecuperacionLotes" && !RECUPERACION_LOTES_CARGADA) {
-    RECUPERACION_LOTES_CARGADA = true;
-    cargarRecuperacionLotes();
-  }
+  cargarModulosDeTab(id);
 }
 
 /* =============================================================
@@ -1198,10 +1331,11 @@ async function guardarLote(){
       document.getElementById("loteVariante").value = "";
       document.getElementById("loteFecha").value = isoHoy();
       actualizarPreviewLote();
-      await cargarCosteo();
-      await cargarProductos();
-      await cargarLotes();
+      await Promise.all([ cargarCosteo(), cargarProductos(), cargarLotes() ]);
       poblarCategoriasVenta();
+      // Producir un lote genera stock nuevo (Inventario) y, si tenía
+      // cuenta asignada, un movimiento de caja; ambos afectan el Dashboard.
+      invalidarModulos("inventario", "dashboard", "flujoCaja");
     } else {
       msg.innerHTML = `<div class="msg-error">${escapeHtml(data.mensaje || "No se pudo guardar el lote")}</div>`;
     }
@@ -1252,11 +1386,10 @@ async function guardarInventarioInicial(){
       document.getElementById("invIniCostoUnitario").value = "";
       document.getElementById("invIniObservaciones").value = "";
       document.getElementById("invIniFecha").value = isoHoy();
-      await cargarCosteo();
-      await cargarProductos();
-      await cargarLotes(); // refresca tanto la tabla de producción como la de inventario inicial
-      await cargarInventario();
+      await Promise.all([ cargarCosteo(), cargarProductos(), cargarLotes() ]); // cargarLotes refresca producción + inventario inicial
       poblarCategoriasVenta();
+      // Registrar inventario inicial agrega stock y afecta el Dashboard.
+      invalidarModulos("inventario", "dashboard");
     } else {
       msg.innerHTML = `<div class="msg-error">${escapeHtml(data.mensaje || "No se pudo registrar el inventario inicial")}</div>`;
     }
@@ -1493,8 +1626,10 @@ async function ejecutarRegistroVenta(datos, msg){
       calcularTotalVenta();
       LOTE_ELEGIDO_VENTA = "";
       cargarLotesActivosVentaSeleccionada();
-      cargarRegistrosRecientes();
-      if (typeof cargarLotes === "function") cargarLotes(); // refresca stock por lote si esa pestaña ya cargó
+      cargarLotes(); // refresca stock por lote (tabla de producción, siempre visible en Costeo)
+      // Una venta mueve stock, caja, y los indicadores del Dashboard y
+      // de Recuperación por Lote — se actualiza solo lo afectado.
+      invalidarModulos("registros", "inventario", "dashboard", "flujoCaja", "recuperacionLotes");
     } else if (data.status === "seleccion_lote_requerida") {
       // Red de seguridad: el stock de los lotes cambió entre que se
       // consultó y que se intentó guardar. Se reabre el modal con la
@@ -1645,7 +1780,9 @@ async function enviarGasto(){
       document.getElementById("gastoDescripcion").value = "";
       document.getElementById("gastoMonto").value = "";
       document.getElementById("gastoEsFijo").checked = false;
-      cargarRegistrosRecientes();
+      // Un gasto afecta la tabla de gastos, el Dashboard y (si tenía
+      // cuenta) el Flujo de Caja — nunca el inventario.
+      invalidarModulos("registros", "dashboard", "flujoCaja");
     } else {
       msg.innerHTML = `<div class="msg-error">${escapeHtml(data.mensaje || "No se pudo registrar")}</div>`;
     }
@@ -2209,7 +2346,7 @@ async function enviarMovimientoCaja(){
       document.getElementById("movCajaCategoria").value = "";
       document.getElementById("movCajaDescripcion").value = "";
       document.getElementById("movCajaMonto").value = "";
-      cargarFlujoCaja();
+      invalidarModulos("flujoCaja", "dashboard");
     } else {
       msg.innerHTML = `<div class="msg-error">${escapeHtml(data.mensaje || "No se pudo registrar")}</div>`;
     }
@@ -2262,8 +2399,8 @@ async function enviarCuentaNueva(){
       msg.innerHTML = `<div class="msg-ok">✔ Cuenta creada.</div>`;
       document.getElementById("cuentaNombre").value = "";
       document.getElementById("cuentaSaldoInicial").value = "0";
-      await cargarCuentas();
-      cargarFlujoCaja();
+      await cargarCuentas(); // catálogo liviano, se recarga siempre (alimenta selects globales)
+      invalidarModulos("flujoCaja", "dashboard");
     } else {
       msg.innerHTML = `<div class="msg-error">${escapeHtml(data.mensaje || "No se pudo crear la cuenta")}</div>`;
     }
@@ -2555,8 +2692,9 @@ async function enviarMovimientoInventario(){
       document.getElementById("invCantidad").value = "";
       document.getElementById("invCostoUnitario").value = "";
       document.getElementById("invNota").value = "";
-      await cargarInventario();
-      await cargarKardex();
+      // La pestaña Inventario está visible ahora mismo, así que se
+      // refresca al instante; el Dashboard se marca para la próxima vez.
+      invalidarModulos("inventario", "dashboard");
     } else {
       msg.innerHTML = `<div class="msg-error">${escapeHtml(data.mensaje || "No se pudo registrar el movimiento")}</div>`;
     }
