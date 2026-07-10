@@ -241,6 +241,7 @@
     <button class="tab-btn" data-tab="tabVenta" onclick="cambiarTab('tabVenta')">💰 Registrar venta</button>
     <button class="tab-btn" data-tab="tabGasto" onclick="cambiarTab('tabGasto')">🧾 Registrar gasto</button>
     <button class="tab-btn" data-tab="tabInventario" onclick="cambiarTab('tabInventario')">📦 Inventario</button>
+    <button class="tab-btn" data-tab="tabInventarioInicial" onclick="cambiarTab('tabInventarioInicial')">📥 Inventario Inicial</button>
     <button class="tab-btn" data-tab="tabRecuperacionLotes" onclick="cambiarTab('tabRecuperacionLotes')">🎯 Recuperación por Lote</button>
     <button class="tab-btn" data-tab="tabFlujoCaja" onclick="cambiarTab('tabFlujoCaja')">💵 Flujo de Caja</button>
     <button class="tab-btn" data-tab="tabResultados" onclick="cambiarTab('tabResultados')">📈 Estado de Resultados</button>
@@ -255,7 +256,7 @@
     <!-- ── Calculadora de lote (forma recomendada) ── -->
     <div class="card">
       <h3>📦 Registrar lote de producción</h3>
-      <div class="subtitulo">Suma todo lo que gastaste en este lote (materiales + mano de obra + otros) y cuántas mochilas salieron. El costo por unidad se calcula solo y reemplaza el costo guardado de ese modelo.</div>
+      <div class="subtitulo">Suma todo lo que gastaste en este lote (materiales + mano de obra + otros) y cuántas mochilas salieron. El costo por unidad se calcula solo y queda guardado PARA SIEMPRE en este lote — un lote nuevo del mismo modelo nunca modifica el costo de un lote anterior.</div>
 
       <div class="form-grid">
         <div class="campo">
@@ -294,8 +295,12 @@
 
       <div class="form-grid">
         <div class="campo">
-          <label>Precio de venta (S/) <small style="color:var(--gray);">déjalo vacío si no cambia</small></label>
+          <label>Precio de venta de ESTE lote (S/) <small style="color:var(--gray);">propio de este lote, para siempre</small></label>
           <input type="number" id="lotePrecioVenta" min="0" step="0.01" placeholder="Ej. 90.00" oninput="actualizarPreviewLote()">
+        </div>
+        <div class="campo">
+          <label>Color / Variante <small style="color:var(--gray);">opcional</small></label>
+          <input type="text" id="loteVariante" placeholder="Ej. Negro">
         </div>
         <div class="campo">
           <label>Cuenta de donde salió el pago del lote</label>
@@ -320,68 +325,31 @@
         </div>
       </div>
 
-      <button class="btn-primary" onclick="guardarLote()">Guardar lote y actualizar costo del modelo</button>
+      <button class="btn-primary" onclick="guardarLote()">Guardar lote</button>
       <div id="msgLote"></div>
     </div>
 
-    <!-- ── Historial de lotes ── -->
+    <!-- ── Historial de Costeo por Lotes ── -->
     <div class="card">
-      <h3>Historial de lotes</h3>
-      <div class="subtitulo">Para auditar cuándo y por qué subió o bajó el costo de cada modelo.</div>
+      <h3>Historial de Costeo por Lotes</h3>
+      <div class="subtitulo">Una fila por cada lote de PRODUCCIÓN (nunca una sola fila por modelo, y sin mezclar Inventario Inicial — ese tiene su propia pestaña 📥). El costo, precio y margen de cada lote quedan congelados para siempre, aunque produzcas lotes nuevos del mismo modelo con otros números.</div>
       <div id="tablaLotes"><div class="estado-carga">Cargando…</div></div>
     </div>
 
     <div class="card">
-      <h3 id="tituloFormCosteo">Ajuste manual (opcional)</h3>
-      <div class="subtitulo">Úsalo solo si necesitas corregir un número a mano, sin registrar un lote nuevo.</div>
+      <h3 id="tituloFormCosteo">Catálogo de modelo</h3>
+      <div class="subtitulo">El modelo es solo el producto comercial (nombre y categoría). El costo, el precio y el margen ya no se guardan aquí — pertenecen a cada lote de producción, arriba.</div>
 
       <input type="hidden" id="costeoId">
       <div class="form-grid">
         <div class="campo">
           <label>Nombre del modelo</label>
-          <input type="text" id="costeoNombre" placeholder="Ej. Mochila Urban 20L" oninput="actualizarPreviewCosteo()">
+          <input type="text" id="costeoNombre" placeholder="Ej. Mochila Urban 20L">
         </div>
         <div class="campo">
           <label>Categoría</label>
           <input type="text" id="costeoCategoria" list="sugerenciasCategoriaCosteo" placeholder="Ej. Mochilas urbanas">
           <datalist id="sugerenciasCategoriaCosteo"></datalist>
-        </div>
-      </div>
-
-      <div class="form-grid cols-3">
-        <div class="campo">
-          <label>Costo de materiales (S/)</label>
-          <input type="number" id="costeoCostoMateriales" min="0" step="0.01" value="0" oninput="actualizarPreviewCosteo()">
-        </div>
-        <div class="campo">
-          <label>Costo de mano de obra (S/)</label>
-          <input type="number" id="costeoCostoManoObra" min="0" step="0.01" value="0" oninput="actualizarPreviewCosteo()">
-        </div>
-        <div class="campo">
-          <label>Otros costos (S/) <small style="color:var(--gray);">empaque, flete, etc.</small></label>
-          <input type="number" id="costeoOtrosCostos" min="0" step="0.01" value="0" oninput="actualizarPreviewCosteo()">
-        </div>
-      </div>
-
-      <div class="form-grid">
-        <div class="campo">
-          <label>Precio de venta (S/)</label>
-          <input type="number" id="costeoPrecioVenta" min="0" step="0.01" value="0" oninput="actualizarPreviewCosteo()">
-        </div>
-      </div>
-
-      <div class="preview-costeo">
-        <div class="preview-caja">
-          <div class="etq">Costo total</div>
-          <div class="cif" id="previewCostoTotal">S/ 0.00</div>
-        </div>
-        <div class="preview-caja" id="cajaMargenSoles">
-          <div class="etq">Margen (S/)</div>
-          <div class="cif" id="previewMargenSoles">S/ 0.00</div>
-        </div>
-        <div class="preview-caja" id="cajaMargenPct">
-          <div class="etq">Margen (%)</div>
-          <div class="cif" id="previewMargenPct">0%</div>
         </div>
       </div>
 
@@ -393,8 +361,8 @@
     </div>
 
     <div class="card">
-      <h3>Tus modelos y su margen</h3>
-      <div class="subtitulo">Toca "Editar" en cualquier fila para modificarla.</div>
+      <h3>Tus modelos</h3>
+      <div class="subtitulo">Solo catálogo — nombre y categoría. Toca "Editar" en cualquier fila para modificarla.</div>
       <div id="tablaCosteo"><div class="estado-carga">Cargando…</div></div>
     </div>
   </div>
@@ -570,6 +538,57 @@
         <input type="text" id="invFiltroModelo" list="sugerenciasModelosLote" placeholder="Deja vacío para ver todos" oninput="cargarKardex()">
       </div>
       <div id="tablaKardex"><div class="estado-carga">Cargando…</div></div>
+    </div>
+  </div>
+
+  <!-- ───────── TAB: INVENTARIO INICIAL ───────── -->
+  <div class="tab-panel" id="tabInventarioInicial">
+    <div class="card">
+      <h3>📥 Inventario Inicial</h3>
+      <div class="subtitulo">Usa este módulo SOLO para registrar mercancía que ya existía físicamente antes de empezar a usar el sistema. Nunca se mezcla con Producción: cada registro crea un lote especial (ej. "INV-0001") con su propia numeración y tipo, para que la trazabilidad quede siempre clara.</div>
+
+      <div class="form-grid">
+        <div class="campo">
+          <label>Modelo</label>
+          <input type="text" id="invIniModelo" list="sugerenciasModelosLote" placeholder="Ej. Mochila Urban 20L">
+        </div>
+        <div class="campo">
+          <label>Categoría</label>
+          <input type="text" id="invIniCategoria" list="sugerenciasCategoriaCosteo" placeholder="Ej. Mochilas urbanas">
+        </div>
+        <div class="campo">
+          <label>Color / Variante <small style="color:var(--gray);">opcional</small></label>
+          <input type="text" id="invIniVariante" placeholder="Ej. Negro">
+        </div>
+        <div class="campo">
+          <label>Fecha</label>
+          <input type="date" id="invIniFecha">
+        </div>
+      </div>
+
+      <div class="form-grid cols-3">
+        <div class="campo">
+          <label>Cantidad</label>
+          <input type="number" id="invIniCantidad" min="1" step="1" placeholder="Ej. 40">
+        </div>
+        <div class="campo">
+          <label>Costo unitario (S/)</label>
+          <input type="number" id="invIniCostoUnitario" min="0" step="0.01" placeholder="Ej. 35.00">
+        </div>
+        <div class="campo">
+          <label>Observaciones <small style="color:var(--gray);">opcional</small></label>
+          <input type="text" id="invIniObservaciones" placeholder="Ej. Conteo físico antes de migrar al sistema">
+        </div>
+      </div>
+
+      <button class="btn-primary" onclick="guardarInventarioInicial()">Registrar inventario inicial</button>
+      <div id="msgInventarioInicial"></div>
+    </div>
+
+    <div class="card">
+      <h3>Historial de Inventario Inicial</h3>
+      <div class="subtitulo">Cada fila es un registro de mercancía preexistente (nunca un lote de producción). Aparece también en el Kardex con Tipo "Inventario Inicial" y participa normalmente en ventas, Estado de Resultados y demás reportes, igual que cualquier otro lote.</div>
+      <div id="tablaInventarioInicial"><div class="estado-carga">Cargando…</div></div>
     </div>
   </div>
 
@@ -797,8 +816,8 @@
     </div>
 
     <div class="card no-print">
-      <h3>🧮 Costeo</h3>
-      <div class="subtitulo">Costo, precio y margen de todos tus modelos (situación actual).</div>
+      <h3>🧮 Costeo por Lotes</h3>
+      <div class="subtitulo">Costo, precio y margen de cada lote producido (histórico, congelado por lote).</div>
       <div style="display:flex; gap:10px; flex-wrap:wrap;">
         <button class="btn-secundario" onclick="exportarPDF('costeo')">⬇️ Exportar PDF</button>
         <button class="btn-secundario" onclick="exportarExcel('costeo')">⬇️ Exportar Excel</button>
@@ -947,6 +966,8 @@ async function inicializarApp(){
   actualizarCamposMovimiento();
   cargarInventario();
   cargarKardex();
+
+  document.getElementById("invIniFecha").value = isoHoy();
 }
 
 function isoHoy(){
@@ -996,30 +1017,6 @@ function cambiarTab(id){
 /* =============================================================
    COSTEO Y PRECIOS
    ============================================================= */
-function actualizarPreviewCosteo(){
-  const cm  = Number(document.getElementById("costeoCostoMateriales").value) || 0;
-  const cmo = Number(document.getElementById("costeoCostoManoObra").value) || 0;
-  const oc  = Number(document.getElementById("costeoOtrosCostos").value) || 0;
-  const pv  = Number(document.getElementById("costeoPrecioVenta").value) || 0;
-
-  const costoTotal = cm + cmo + oc;
-  const margenSoles = pv - costoTotal;
-  const margenPct = pv > 0 ? (margenSoles / pv) * 100 : 0;
-
-  document.getElementById("previewCostoTotal").textContent = `S/ ${costoTotal.toFixed(2)}`;
-  document.getElementById("previewMargenSoles").textContent = `S/ ${margenSoles.toFixed(2)}`;
-  document.getElementById("previewMargenPct").textContent = `${margenPct.toFixed(1)}%`;
-
-  const cajaSoles = document.getElementById("cajaMargenSoles");
-  const cajaPct = document.getElementById("cajaMargenPct");
-  cajaSoles.classList.remove("bueno", "malo");
-  cajaPct.classList.remove("bueno", "malo");
-  if (pv > 0) {
-    cajaSoles.classList.add(margenSoles >= 0 ? "bueno" : "malo");
-    cajaPct.classList.add(margenSoles >= 0 ? "bueno" : "malo");
-  }
-}
-
 async function cargarCosteo(){
   try {
     const res = await fetch(`${CONFIG.appsScriptUrl}?accion=costeo`);
@@ -1060,13 +1057,11 @@ function actualizarPreviewLote(){
   const previewMargen = document.getElementById("previewMargenLote");
   cajaMargen.classList.remove("bueno", "malo");
 
-  let precioVenta = Number(pvInput) || 0;
-  if (!pvInput) {
-    // si no escribió un precio nuevo, usa el precio actual del modelo (si existe)
-    const nombre = document.getElementById("loteModelo").value.trim().toLowerCase();
-    const existente = COSTEO_LISTA.find(c => c.name.trim().toLowerCase() === nombre);
-    precioVenta = existente ? existente.precioVenta : 0;
-  }
+  // El precio es propio de ESTE lote — ya no existe un "precio del
+  // modelo" del cual tomarlo prestado. Si no se escribe, no hay preview
+  // de margen (se guardará el lote sin precio sugerido, editable luego
+  // solo en un lote nuevo, nunca reescribiendo este).
+  const precioVenta = Number(pvInput) || 0;
 
   if (precioVenta > 0 && cantidad > 0) {
     const margenPct = ((precioVenta - costoPorUnidad) / precioVenta) * 100;
@@ -1079,35 +1074,82 @@ function actualizarPreviewLote(){
 
 async function cargarLotes(){
   try {
-    const res = await fetch(`${CONFIG.appsScriptUrl}?accion=lotes`);
+    const res = await fetch(`${CONFIG.appsScriptUrl}?accion=costeoLotes`);
     LOTES_LISTA = await res.json();
   } catch (err) {
-    console.error("No se pudo cargar el historial de lotes", err);
+    console.error("No se pudo cargar el historial de costeo por lotes", err);
     LOTES_LISTA = [];
   }
   renderTablaLotes();
+  renderTablaInventarioInicial();
 }
 
 function renderTablaLotes(){
   const cont = document.getElementById("tablaLotes");
-  if (!LOTES_LISTA.length) {
+  // (Prompt 7): esta tabla es SOLO de producción; el inventario inicial
+  // tiene su propia tabla en la pestaña 📥 Inventario Inicial, para no
+  // mezclar los dos conceptos.
+  const lotesProduccion = LOTES_LISTA.filter(l => (l.tipoLote || "Produccion") === "Produccion");
+  if (!lotesProduccion.length) {
     cont.innerHTML = `<div class="estado-vacio">Aún no has registrado ningún lote.</div>`;
     return;
   }
   cont.innerHTML = `<table class="registros">
     <thead><tr>
-      <th>Fecha</th><th>Modelo</th>
-      <th style="text-align:right;">Costo total lote</th>
-      <th style="text-align:right;">Cantidad</th>
+      <th>Lote</th><th>Modelo</th><th>Color/Variante</th><th>Fecha</th>
+      <th style="text-align:right;">Producción</th>
+      <th style="text-align:right;">Vendidas</th>
+      <th style="text-align:right;">Stock</th>
       <th style="text-align:right;">Costo/unidad</th>
+      <th style="text-align:right;">Precio</th>
+      <th style="text-align:right;">Margen</th>
+      <th>Estado</th>
     </tr></thead>
-    <tbody>${LOTES_LISTA.map(l => `
+    <tbody>${lotesProduccion.map(l => `
       <tr>
-        <td>${l.fecha}</td>
+        <td>${escapeHtml(l.loteId)}</td>
         <td>${escapeHtml(l.modelo)}</td>
-        <td class="num">S/ ${l.costoTotalLote.toFixed(2)}</td>
+        <td>${l.variante ? escapeHtml(l.variante) : "—"}</td>
+        <td>${l.fecha}</td>
         <td class="num">${l.cantidadProducida}</td>
-        <td class="num">S/ ${l.costoPorUnidad.toFixed(2)}</td>
+        <td class="num">${l.vendidas}</td>
+        <td class="num">${l.stockDisponible}</td>
+        <td class="num">S/ ${l.costoUnitario.toFixed(2)}</td>
+        <td class="num">${l.precioVenta > 0 ? "S/ " + l.precioVenta.toFixed(2) : "—"}</td>
+        <td class="num">${l.precioVenta > 0 ? pillMargen(l.margenPorcentaje) : "—"}</td>
+        <td><span class="pill ${l.estado === "Activo" ? "bueno" : "regular"}">${l.estado}</span></td>
+      </tr>`).join("")}
+    </tbody></table>`;
+}
+
+function renderTablaInventarioInicial(){
+  const cont = document.getElementById("tablaInventarioInicial");
+  if (!cont) return;
+  const lotesIniciales = LOTES_LISTA.filter(l => l.tipoLote === "InventarioInicial");
+  if (!lotesIniciales.length) {
+    cont.innerHTML = `<div class="estado-vacio">Aún no has registrado inventario inicial.</div>`;
+    return;
+  }
+  cont.innerHTML = `<table class="registros">
+    <thead><tr>
+      <th>Lote</th><th>Modelo</th><th>Color/Variante</th><th>Fecha</th>
+      <th style="text-align:right;">Cantidad</th>
+      <th style="text-align:right;">Vendidas</th>
+      <th style="text-align:right;">Stock</th>
+      <th style="text-align:right;">Costo/unidad</th>
+      <th>Estado</th>
+    </tr></thead>
+    <tbody>${lotesIniciales.map(l => `
+      <tr>
+        <td>${escapeHtml(l.loteId)}</td>
+        <td>${escapeHtml(l.modelo)}</td>
+        <td>${l.variante ? escapeHtml(l.variante) : "—"}</td>
+        <td>${l.fecha}</td>
+        <td class="num">${l.cantidadProducida}</td>
+        <td class="num">${l.vendidas}</td>
+        <td class="num">${l.stockDisponible}</td>
+        <td class="num">S/ ${l.costoUnitario.toFixed(2)}</td>
+        <td><span class="pill ${l.estado === "Activo" ? "bueno" : "regular"}">${l.estado}</span></td>
       </tr>`).join("")}
     </tbody></table>`;
 }
@@ -1123,6 +1165,7 @@ async function guardarLote(){
     otrosCostosLote: Number(document.getElementById("loteOtrosCostos").value) || 0,
     cantidadProducida: Number(document.getElementById("loteCantidad").value) || 0,
     precioVenta: Number(document.getElementById("lotePrecioVenta").value) || 0,
+    variante: document.getElementById("loteVariante").value.trim(),
     cuenta: document.getElementById("loteCuenta").value
   };
 
@@ -1152,6 +1195,7 @@ async function guardarLote(){
       document.getElementById("loteOtrosCostos").value = 0;
       document.getElementById("loteCantidad").value = "";
       document.getElementById("lotePrecioVenta").value = "";
+      document.getElementById("loteVariante").value = "";
       document.getElementById("loteFecha").value = isoHoy();
       actualizarPreviewLote();
       await cargarCosteo();
@@ -1160,6 +1204,61 @@ async function guardarLote(){
       poblarCategoriasVenta();
     } else {
       msg.innerHTML = `<div class="msg-error">${escapeHtml(data.mensaje || "No se pudo guardar el lote")}</div>`;
+    }
+  } catch (err) {
+    msg.innerHTML = `<div class="msg-error">Error de conexión. Revisa CONFIG.appsScriptUrl.</div>`;
+    console.error(err);
+  }
+}
+
+/* =============================================================
+   INVENTARIO INICIAL (Prompt 7)
+   ============================================================= */
+async function guardarInventarioInicial(){
+  const msg = document.getElementById("msgInventarioInicial");
+  const datos = {
+    modelo: document.getElementById("invIniModelo").value.trim(),
+    categoria: document.getElementById("invIniCategoria").value.trim(),
+    variante: document.getElementById("invIniVariante").value.trim(),
+    fecha: document.getElementById("invIniFecha").value,
+    cantidad: Number(document.getElementById("invIniCantidad").value) || 0,
+    costoUnitario: Number(document.getElementById("invIniCostoUnitario").value) || 0,
+    observaciones: document.getElementById("invIniObservaciones").value.trim()
+  };
+
+  if (!datos.modelo || !datos.categoria) {
+    msg.innerHTML = `<div class="msg-error">Completa el modelo y la categoría.</div>`;
+    return;
+  }
+  if (datos.cantidad <= 0) {
+    msg.innerHTML = `<div class="msg-error">Indica cuántas unidades ya existen físicamente.</div>`;
+    return;
+  }
+
+  msg.innerHTML = `<div class="estado-carga" style="padding:10px 0;">Guardando…</div>`;
+  try {
+    const res = await fetch(`${CONFIG.appsScriptUrl}?accion=registrarInventarioInicial`, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(datos)
+    });
+    const data = await res.json();
+    if (data.status === "ok") {
+      msg.innerHTML = `<div class="msg-ok">✔ Inventario inicial registrado como lote ${escapeHtml(data.loteId)}. Costo total: S/ ${data.costoTotalLote.toFixed(2)}.</div>`;
+      document.getElementById("invIniModelo").value = "";
+      document.getElementById("invIniCategoria").value = "";
+      document.getElementById("invIniVariante").value = "";
+      document.getElementById("invIniCantidad").value = "";
+      document.getElementById("invIniCostoUnitario").value = "";
+      document.getElementById("invIniObservaciones").value = "";
+      document.getElementById("invIniFecha").value = isoHoy();
+      await cargarCosteo();
+      await cargarProductos();
+      await cargarLotes(); // refresca tanto la tabla de producción como la de inventario inicial
+      await cargarInventario();
+      poblarCategoriasVenta();
+    } else {
+      msg.innerHTML = `<div class="msg-error">${escapeHtml(data.mensaje || "No se pudo registrar el inventario inicial")}</div>`;
     }
   } catch (err) {
     msg.innerHTML = `<div class="msg-error">Error de conexión. Revisa CONFIG.appsScriptUrl.</div>`;
@@ -1176,18 +1275,12 @@ function renderTablaCosteo(){
   cont.innerHTML = `<table class="registros">
     <thead><tr>
       <th>Modelo</th><th>Categoría</th>
-      <th style="text-align:right;">Costo</th>
-      <th style="text-align:right;">Precio</th>
-      <th style="text-align:right;">Margen</th>
       <th class="no-print"></th>
     </tr></thead>
     <tbody>${COSTEO_LISTA.map(c => `
       <tr>
         <td>${escapeHtml(c.name)}</td>
         <td>${escapeHtml(c.category)}</td>
-        <td class="num">S/ ${c.costoTotal.toFixed(2)}</td>
-        <td class="num">S/ ${c.precioVenta.toFixed(2)}</td>
-        <td class="num">${pillMargen(c.margenPorcentaje)}</td>
         <td class="no-print" style="white-space:nowrap;">
           <button class="btn-texto" onclick="editarCosteo('${c.id}')">Editar</button>
           <button class="btn-texto peligro" onclick="borrarCosteo('${c.id}','${escapeHtml(c.name)}')">Eliminar</button>
@@ -1210,27 +1303,17 @@ function editarCosteo(id){
   document.getElementById("costeoId").value = c.id;
   document.getElementById("costeoNombre").value = c.name;
   document.getElementById("costeoCategoria").value = c.category;
-  document.getElementById("costeoCostoMateriales").value = c.costoMateriales;
-  document.getElementById("costeoCostoManoObra").value = c.costoManoObra;
-  document.getElementById("costeoOtrosCostos").value = c.otrosCostos;
-  document.getElementById("costeoPrecioVenta").value = c.precioVenta;
   document.getElementById("btnCancelarEdicionCosteo").style.display = "inline-block";
-  actualizarPreviewCosteo();
   document.getElementById("tabCosteo").scrollIntoView({ behavior:"smooth", block:"start" });
 }
 
 function cancelarEdicionCosteo(){
-  document.getElementById("tituloFormCosteo").textContent = "Nuevo modelo";
+  document.getElementById("tituloFormCosteo").textContent = "Catálogo de modelo";
   document.getElementById("costeoId").value = "";
   document.getElementById("costeoNombre").value = "";
   document.getElementById("costeoCategoria").value = "";
-  document.getElementById("costeoCostoMateriales").value = 0;
-  document.getElementById("costeoCostoManoObra").value = 0;
-  document.getElementById("costeoOtrosCostos").value = 0;
-  document.getElementById("costeoPrecioVenta").value = 0;
   document.getElementById("btnCancelarEdicionCosteo").style.display = "none";
   document.getElementById("msgCosteo").innerHTML = "";
-  actualizarPreviewCosteo();
 }
 
 async function guardarCosteo(){
@@ -1238,11 +1321,7 @@ async function guardarCosteo(){
   const datos = {
     id: document.getElementById("costeoId").value || undefined,
     name: document.getElementById("costeoNombre").value.trim(),
-    category: document.getElementById("costeoCategoria").value.trim(),
-    costoMateriales: Number(document.getElementById("costeoCostoMateriales").value) || 0,
-    costoManoObra: Number(document.getElementById("costeoCostoManoObra").value) || 0,
-    otrosCostos: Number(document.getElementById("costeoOtrosCostos").value) || 0,
-    precioVenta: Number(document.getElementById("costeoPrecioVenta").value) || 0
+    category: document.getElementById("costeoCategoria").value.trim()
   };
 
   if (!datos.name || !datos.category) {
@@ -1259,7 +1338,7 @@ async function guardarCosteo(){
     });
     const data = await res.json();
     if (data.status === "ok") {
-      msg.innerHTML = `<div class="msg-ok">✔ Modelo guardado. Margen: ${data.margenPorcentaje.toFixed(1)}%</div>`;
+      msg.innerHTML = `<div class="msg-ok">✔ Modelo guardado en el catálogo.</div>`;
       cancelarEdicionCosteo();
       await cargarCosteo();
       await cargarProductos();
@@ -1314,11 +1393,10 @@ function actualizarModelosVenta(){
 }
 
 function autocompletarPrecioVenta(){
-  const id = document.getElementById("ventaModelo").value;
-  const producto = PRODUCTOS.find(p => p.id === id);
-  if (producto) {
-    document.getElementById("ventaPrecio").value = producto.price.toFixed(2);
-  }
+  // El precio ya no vive en el modelo: se autocompleta desde el lote
+  // activo correspondiente en cargarLotesActivosVentaSeleccionada()
+  // (que se dispara junto con este handler). Aquí solo recalculamos el
+  // total con lo que ya haya en el campo.
   calcularTotalVenta();
 }
 
@@ -1355,11 +1433,17 @@ async function cargarLotesActivosVentaSeleccionada(){
   if (!Array.isArray(LOTES_MODELO_VENTA)) { LOTES_MODELO_VENTA = []; return; }
 
   if (LOTES_MODELO_VENTA.length === 1) {
-    LOTE_ELEGIDO_VENTA = LOTES_MODELO_VENTA[0].loteId;
+    const unico = LOTES_MODELO_VENTA[0];
+    LOTE_ELEGIDO_VENTA = unico.loteId;
+    // El precio sale del lote (nunca del modelo, que ya no lo guarda).
+    if (unico.precioVentaSugerido > 0) {
+      document.getElementById("ventaPrecio").value = unico.precioVentaSugerido.toFixed(2);
+      calcularTotalVenta();
+    }
     info.innerHTML = `<div class="msg-ok" style="margin-top:12px;">Se usará el Lote ${escapeHtml(LOTE_ELEGIDO_VENTA)} (único lote activo de este modelo).</div>`;
   } else if (LOTES_MODELO_VENTA.length > 1) {
     info.innerHTML = `<div class="msg-error" style="background:var(--gold-soft); color:#8a6a1f; margin-top:12px;">
-      Este modelo tiene ${LOTES_MODELO_VENTA.length} lotes activos. Al registrar la venta, elegirás de cuál salió la mercancía.
+      Este modelo tiene ${LOTES_MODELO_VENTA.length} lotes activos con precios propios. Al elegir uno en la ventana de selección, se usará el precio de ese lote.
     </div>`;
   }
 }
@@ -1445,28 +1529,51 @@ function abrirModalSeleccionLote(lotes, datosVentaPendiente){
   }
   VENTA_PENDIENTE = datosVentaPendiente;
   const body = document.getElementById("modalLoteBody");
+  // (Prompt 7) La lista que manda el backend ya viene en orden FIFO
+  // (lote más antiguo primero) — ver obtenerLotesDisponiblesFIFO. El
+  // botón "automático" simplemente toma ese primero, nunca recalcula
+  // nada por su cuenta.
+  const loteFifo = lotes[0];
   body.innerHTML = `
     <p class="subtitulo" style="margin:0 0 14px;">
-      El modelo <b>${escapeHtml(datosVentaPendiente.nombre)}</b> tiene varios lotes activos. Elige de cuál salió la mercancía.
+      El modelo <b>${escapeHtml(datosVentaPendiente.nombre)}</b> tiene ${lotes.length} lotes activos. Elige exactamente de cuál salió la mercancía.
       Si la cantidad vendida (${datosVentaPendiente.cantidad}) supera el stock del lote elegido, el resto se completará
-      automáticamente con los demás lotes disponibles.
+      automáticamente con los demás lotes disponibles (nunca se mezcla el costo entre lotes).
     </p>
-    <div class="lote-select-list">
-      ${lotes.map(l => `
-        <div class="lote-select-item">
-          <div class="lote-select-info">
-            <div class="lote-select-titulo">
-              Lote ${escapeHtml(l.loteId)}
-              <span class="pill ${pillClaseRecuperacion(l.capitalRecuperadoPct)}">${l.capitalRecuperadoPct.toFixed(1)}% recuperado</span>
-            </div>
-            <div class="lote-select-datos">
-              Producido: ${l.fecha} · Disponible: <b>${l.disponible}</b> unid.<br>
-              Costo unitario: S/ ${l.costoPorUnidad.toFixed(2)} · Precio sugerido: S/ ${l.precioVentaSugerido.toFixed(2)}
-            </div>
-          </div>
-          <button class="btn-primary" style="white-space:nowrap;" onclick="elegirLoteVenta('${escapeHtml(l.loteId)}')">Usar este lote</button>
-        </div>
-      `).join("")}
+    <div style="margin-bottom:12px;">
+      <button class="btn-secundario" onclick="elegirLoteVenta('${escapeHtml(loteFifo.loteId)}')">
+        ⚡ Usar modo automático (FIFO — Lote ${escapeHtml(loteFifo.loteId)}, el más antiguo)
+      </button>
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="registros">
+        <thead><tr>
+          <th>Lote</th><th>Fecha</th><th>Color/Variante</th>
+          <th style="text-align:right;">Stock Disponible</th>
+          <th style="text-align:right;">Costo Unitario</th>
+          <th style="text-align:right;">Precio Venta</th>
+          <th style="text-align:right;">Margen</th>
+          <th>Estado</th>
+          <th class="no-print"></th>
+        </tr></thead>
+        <tbody>${lotes.map(l => `
+          <tr>
+            <td>
+              ${escapeHtml(l.loteId)}
+              ${l.tipoLote === "InventarioInicial" ? `<span class="pill regular" style="margin-left:6px;">Inv. Inicial</span>` : ""}
+              <br><span class="pill ${pillClaseRecuperacion(l.capitalRecuperadoPct)}" style="margin-top:4px; display:inline-block;">${l.capitalRecuperadoPct.toFixed(1)}% recuperado</span>
+            </td>
+            <td>${l.fecha}</td>
+            <td>${l.variante ? escapeHtml(l.variante) : "—"}</td>
+            <td class="num"><b>${l.disponible}</b></td>
+            <td class="num">S/ ${l.costoPorUnidad.toFixed(2)}</td>
+            <td class="num">${l.precioVentaSugerido > 0 ? "S/ " + l.precioVentaSugerido.toFixed(2) : "—"}</td>
+            <td class="num">${l.margenPorcentaje !== undefined ? pillMargen(l.margenPorcentaje) : "—"}</td>
+            <td><span class="pill bueno">${l.estado || "Activo"}</span></td>
+            <td class="no-print"><button class="btn-primary" style="white-space:nowrap;" onclick="elegirLoteVenta('${escapeHtml(l.loteId)}')">Usar este lote</button></td>
+          </tr>`).join("")}
+        </tbody>
+      </table>
     </div>
   `;
   document.getElementById("modalLoteVenta").style.display = "flex";
@@ -1491,6 +1598,16 @@ async function elegirLoteVenta(loteId){
 
   LOTE_ELEGIDO_VENTA = loteId;
   datos.loteId = loteId;
+
+  // Si el usuario no había escrito un precio manualmente, se usa el
+  // precio propio del lote elegido (nunca uno del modelo).
+  const lote = LOTES_MODELO_VENTA.find(l => l.loteId === loteId);
+  if (lote && lote.precioVentaSugerido > 0 && !datos.precioUnitario) {
+    datos.precioUnitario = lote.precioVentaSugerido;
+    document.getElementById("ventaPrecio").value = lote.precioVentaSugerido.toFixed(2);
+    calcularTotalVenta();
+  }
+
   await ejecutarRegistroVenta(datos, document.getElementById("msgVenta"));
 }
 
@@ -1695,10 +1812,10 @@ function renderEstadoResultados(){
 
       ${r.ventasSinCosteo.length > 0 ? `
         <div class="alerta-costeo">
-          ⚠️ <strong>Estos modelos vendidos no tienen datos en tu pestaña "Costeo y Precios"</strong>
+          ⚠️ <strong>Estos modelos vendidos no tienen ningún lote de producción registrado</strong>
           (su costo se contó como S/ 0, así que la utilidad real es más baja de lo que se ve aquí):
           ${r.ventasSinCosteo.map(escapeHtml).join(", ")}.
-          Ve a la pestaña 🧮 Costeo y Precios y agrégalos.
+          Ve a la pestaña 🧮 Costeo y Precios y registra un lote para esos modelos.
         </div>
       ` : ""}
     </div>
@@ -1835,7 +1952,7 @@ async function cargarDashboard(){
       </div>
 
       <div class="grafico-caja">
-        <h4>Rentabilidad por modelo (margen %)</h4>
+        <h4>Rentabilidad por lote (margen %)</h4>
         <canvas id="graficoRentabilidad"></canvas>
       </div>
 
@@ -1858,7 +1975,16 @@ async function cargarDashboard(){
     construirGraficoDoughnut("graficoGastos", ["Administrativo","Venta","Financiero","Otro"],
       [gastosPorTipo.administrativo, gastosPorTipo.venta, gastosPorTipo.financiero, gastosPorTipo.otro]);
     construirGraficoBarras("graficoMasVendidos", masVendidos.map(x => x[0]), masVendidos.map(x => x[1]), "Unidades vendidas", false);
-    construirGraficoBarras("graficoRentabilidad", COSTEO_LISTA.map(c => c.name), COSTEO_LISTA.map(c => c.margenPorcentaje), "Margen %", true);
+    // El margen ya no existe por modelo — se grafica por lote (con
+    // precio propio definido), etiquetado "Modelo (Lote)" para que se
+    // distingan lotes distintos del mismo modelo con márgenes distintos.
+    const lotesConPrecio = LOTES_LISTA.filter(l => l.precioVenta > 0);
+    construirGraficoBarras(
+      "graficoRentabilidad",
+      lotesConPrecio.map(l => `${l.modelo} (${l.loteId})`),
+      lotesConPrecio.map(l => l.margenPorcentaje),
+      "Margen %", true
+    );
 
   } catch (err) {
     cont.innerHTML = `<div class="msg-error">No se pudo calcular el dashboard. Revisa CONFIG.appsScriptUrl.</div>`;
@@ -2271,9 +2397,13 @@ async function obtenerDatosReporte(tipo){
 
   if (tipo === "costeo") {
     return {
-      titulo: "Costeo y Precios (situación actual)",
-      columnas: ["Modelo", "Categoría", "Costo (S/)", "Precio (S/)", "Margen (S/)", "Margen (%)"],
-      filas: COSTEO_LISTA.map(c => [c.name, c.category, c.costoTotal.toFixed(2), c.precioVenta.toFixed(2), c.margenSoles.toFixed(2), c.margenPorcentaje.toFixed(1) + "%"])
+      titulo: "Historial de Costeo por Lotes",
+      columnas: ["Lote", "Modelo", "Fecha", "Producción", "Vendidas", "Stock", "Costo/unidad (S/)", "Precio (S/)", "Margen (%)", "Estado"],
+      filas: LOTES_LISTA.map(l => [
+        l.loteId, l.modelo, l.fecha, l.cantidadProducida, l.vendidas, l.stockDisponible,
+        l.costoUnitario.toFixed(2), l.precioVenta > 0 ? l.precioVenta.toFixed(2) : "—",
+        l.precioVenta > 0 ? l.margenPorcentaje.toFixed(1) + "%" : "—", l.estado
+      ])
     };
   }
 }
@@ -2453,8 +2583,9 @@ async function cargarKardex(){
 }
 
 const ETIQUETA_TIPO_MOVIMIENTO = {
-  Inicial: "Inventario inicial",
-  Produccion: "Producción",
+  Inicial: "Inventario inicial (manual)",
+  Produccion: "Entrada — Producción",
+  InventarioInicial: "Entrada — Inventario Inicial",
   Entrada: "Entrada",
   SalidaVenta: "Salida por venta",
   Ajuste: "Ajuste"
