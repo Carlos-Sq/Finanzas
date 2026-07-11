@@ -346,12 +346,49 @@
   .kpi-caja.bueno .cif{color:var(--green-deep);}
   .kpi-caja.malo .cif{color:var(--red-deep);}
   .grafico-caja{
-    background:var(--white); border:1px solid var(--line); border-radius:var(--radius); padding:20px;
-    box-shadow:var(--shadow-sm); margin-bottom:20px; transition:box-shadow .15s ease;
+    position:relative; background:var(--white); border:1px solid var(--line); border-radius:16px; padding:22px 24px 20px;
+    box-shadow:var(--shadow-sm); margin-bottom:20px; transition:box-shadow .18s ease, transform .18s ease; overflow:hidden;
   }
-  .grafico-caja:hover{box-shadow:var(--shadow);}
-  .grafico-caja h4{margin:0 0 16px; font-size:13.5px; font-weight:800;}
+  .grafico-caja::before{
+    content:""; position:absolute; top:0; left:0; right:0; height:3px;
+    background:linear-gradient(90deg, var(--red) 0%, var(--gold) 100%);
+    opacity:0; transition:opacity .18s ease;
+  }
+  .grafico-caja:hover{box-shadow:var(--shadow-lg); transform:translateY(-2px);}
+  .grafico-caja:hover::before{opacity:1;}
+  .grafico-caja h4{margin:0; font-size:14px; font-weight:800; letter-spacing:-0.01em;}
   .grafico-caja canvas{max-height:280px;}
+
+  .grafico-cab{display:flex; align-items:flex-start; justify-content:space-between; gap:14px; margin-bottom:18px;}
+  .grafico-cab .titulos{display:flex; align-items:flex-start; gap:12px;}
+  .grafico-cab .icono{
+    flex:none; width:34px; height:34px; border-radius:10px; display:flex; align-items:center; justify-content:center;
+    font-size:16px; background:var(--paper-warm); border:1px solid var(--line);
+  }
+  .grafico-cab .sub{font-size:11.5px; color:var(--gray); margin-top:3px; font-weight:500;}
+  .grafico-cab .chip{
+    flex:none; font-size:11px; font-weight:700; padding:5px 11px; border-radius:999px; white-space:nowrap;
+    background:var(--paper-warm); color:var(--ink-soft); border:1px solid var(--line);
+  }
+  .grafico-cab .chip.bueno{background:var(--green-soft); color:var(--green-deep); border-color:#c9ead9;}
+  .grafico-cab .chip.malo{background:var(--red-soft); color:var(--red-deep); border-color:#f6d3cd;}
+
+  .grafico-lienzo{position:relative; width:100%;}
+  .grafico-lienzo.h-md{height:250px;}
+  .grafico-lienzo.h-lg{height:300px;}
+  .grafico-lienzo.h-sm{height:220px;}
+
+  .grafico-leyenda{display:flex; flex-wrap:wrap; gap:8px 18px; margin-top:14px; padding-top:14px; border-top:1px solid var(--line);}
+  .grafico-leyenda .item{display:flex; align-items:center; gap:7px; font-size:11.5px; font-weight:600; color:var(--ink-soft);}
+  .grafico-leyenda .punto{width:9px; height:9px; border-radius:3px; flex:none;}
+
+  .grafico-vacio{
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px;
+    height:220px; color:var(--gray-soft); text-align:center; padding:0 20px;
+  }
+  .grafico-vacio .icono{font-size:26px; opacity:0.55;}
+  .grafico-vacio .txt{font-size:12.5px; font-weight:600; color:var(--gray);}
+  .grafico-vacio .sub{font-size:11.5px; color:var(--gray-soft);}
 
   /* Dashboard — organización mejorada */
   .dash-hero{
@@ -388,6 +425,10 @@
   .grafico-grid{display:grid; grid-template-columns:1fr 1fr; gap:20px;}
   .grafico-grid .grafico-caja{margin-bottom:0;}
   @media (max-width:980px){ .grafico-grid{grid-template-columns:1fr;} }
+
+  .grafico-grid-3{display:grid; grid-template-columns:1.3fr 1fr; gap:20px; align-items:stretch;}
+  .grafico-grid-3 .grafico-caja{margin-bottom:0; height:100%;}
+  @media (max-width:980px){ .grafico-grid-3{grid-template-columns:1fr;} }
 
   /* Recuperación de la Inversión por Lote */
   .lote-card{background:var(--white); border:1px solid var(--line); border-radius:var(--radius); padding:22px; box-shadow:var(--shadow-sm); margin-bottom:18px;}
@@ -2403,25 +2444,61 @@ async function cargarDashboard(){
 
       <div class="dash-section-title"><span>📈 Tendencias</span><span class="linea"></span></div>
       <div class="grafico-caja">
-        <h4>Ventas y utilidad — últimos 6 meses</h4>
-        <canvas id="graficoTendencia"></canvas>
+        <div class="grafico-cab">
+          <div class="titulos">
+            <div class="icono">📈</div>
+            <div>
+              <h4>Ventas y utilidad</h4>
+              <div class="sub">Evolución de los últimos 6 meses</div>
+            </div>
+          </div>
+          <div class="chip">Feb – ${NOMBRES_MES[r.mes-1].slice(0,3)} ${r.anio}</div>
+        </div>
+        <div class="grafico-lienzo h-lg"><canvas id="graficoTendencia"></canvas></div>
+        <div class="grafico-leyenda" id="leyendaTendencia"></div>
       </div>
 
-      <div class="grafico-grid">
+      <div class="grafico-grid-3">
         <div class="grafico-caja">
-          <h4>Gastos por categoría — ${NOMBRES_MES[r.mes-1]} ${r.anio}</h4>
-          <canvas id="graficoGastos"></canvas>
+          <div class="grafico-cab">
+            <div class="titulos">
+              <div class="icono">🏷️</div>
+              <div>
+                <h4>Gastos por categoría</h4>
+                <div class="sub">${NOMBRES_MES[r.mes-1]} ${r.anio}</div>
+              </div>
+            </div>
+            <div class="chip">S/ ${(gastosPorTipo.administrativo + gastosPorTipo.venta + gastosPorTipo.financiero + gastosPorTipo.otro).toFixed(0)}</div>
+          </div>
+          <div class="grafico-lienzo h-md"><canvas id="graficoGastos"></canvas></div>
         </div>
         <div class="grafico-caja">
-          <h4>Productos más vendidos — ${NOMBRES_MES[r.mes-1]} ${r.anio} <span style="font-weight:600; color:var(--gray);">(${masVendidos.length})</span></h4>
-          <canvas id="graficoMasVendidos"></canvas>
+          <div class="grafico-cab">
+            <div class="titulos">
+              <div class="icono">🏆</div>
+              <div>
+                <h4>Más vendidos</h4>
+                <div class="sub">${NOMBRES_MES[r.mes-1]} ${r.anio}</div>
+              </div>
+            </div>
+            <div class="chip">${masVendidos.length} modelo${masVendidos.length === 1 ? '' : 's'}</div>
+          </div>
+          <div class="grafico-lienzo h-md"><canvas id="graficoMasVendidos"></canvas></div>
         </div>
       </div>
 
       <div class="dash-section-title"><span>🏭 Rentabilidad por lote</span><span class="linea"></span></div>
       <div class="grafico-caja">
-        <h4>Rentabilidad por lote (margen %)</h4>
-        <canvas id="graficoRentabilidad"></canvas>
+        <div class="grafico-cab">
+          <div class="titulos">
+            <div class="icono">🏭</div>
+            <div>
+              <h4>Rentabilidad por lote</h4>
+              <div class="sub">Margen % sobre precio de venta sugerido, por lote activo</div>
+            </div>
+          </div>
+        </div>
+        <div class="grafico-lienzo" id="lienzoRentabilidad"><canvas id="graficoRentabilidad"></canvas></div>
       </div>
 
       ${stockBajo.length > 0 ? `
@@ -2462,6 +2539,50 @@ async function cargarDashboard(){
   }
 }
 
+/* ── Ayudantes visuales de los gráficos (solo presentación, no tocan
+   cálculos ni datos) ───────────────────────────────────────────── */
+const FUENTE_GRAFICO = "'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif";
+Chart.defaults.font.family = FUENTE_GRAFICO;
+Chart.defaults.color = "#7A7A7A";
+
+function formatoSoles(valor){
+  return "S/ " + (Number(valor) || 0).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// Muestra/oculta el estado vacío de un gráfico sin alterar los datos
+// que recibió: solo decide si hay algo que valga la pena dibujar.
+function actualizarEstadoVacioGrafico(lienzoId, sinDatos, mensaje, submensaje){
+  const lienzo = document.getElementById(lienzoId);
+  if (!lienzo) return;
+  const canvas = lienzo.querySelector("canvas");
+  let vacio = lienzo.querySelector(".grafico-vacio");
+  if (sinDatos) {
+    if (canvas) canvas.style.visibility = "hidden";
+    if (!vacio) {
+      vacio = document.createElement("div");
+      vacio.className = "grafico-vacio";
+      lienzo.appendChild(vacio);
+    }
+    vacio.innerHTML = `<div class="icono">📭</div><div class="txt">${escapeHtml(mensaje)}</div><div class="sub">${escapeHtml(submensaje || "")}</div>`;
+  } else {
+    if (canvas) canvas.style.visibility = "visible";
+    if (vacio) vacio.remove();
+  }
+}
+
+function crearDegradado(ctx, colorHex, alphaArriba){
+  const area = ctx.chart.chartArea;
+  if (!area) return colorHex;
+  const g = ctx.chart.ctx.createLinearGradient(0, area.top, 0, area.bottom);
+  g.addColorStop(0, hexAlpha(colorHex, alphaArriba));
+  g.addColorStop(1, hexAlpha(colorHex, 0));
+  return g;
+}
+function hexAlpha(hex, alpha){
+  const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
 async function construirGraficoTendencia(mesActual, anioActual){
   const meses = [];
   let m = Number(mesActual), a = Number(anioActual);
@@ -2480,27 +2601,108 @@ async function construirGraficoTendencia(mesActual, anioActual){
   destruirGrafico("tendencia");
   const ctx = document.getElementById("graficoTendencia");
   if (!ctx) return;
+
+  const sinDatos = ventas.every(v => !v) && utilidades.every(v => !v);
+  const lienzoTendencia = ctx.closest(".grafico-lienzo");
+  if (lienzoTendencia && !lienzoTendencia.id) lienzoTendencia.id = "lienzoTendencia";
+  if (lienzoTendencia) actualizarEstadoVacioGrafico(lienzoTendencia.id, sinDatos,
+    "Todavía no hay ventas registradas", "El gráfico se llenará apenas registres tu primera venta o gasto del período.");
+
+  const COLOR_VENTAS = "#C0392B", COLOR_UTILIDAD = "#1E8E5A";
   GRAFICOS_DASH.tendencia = new Chart(ctx, {
     type: "line",
     data: {
       labels: etiquetas,
       datasets: [
-        { label: "Ventas", data: ventas, borderColor: "#C0392B", backgroundColor: "rgba(192,57,43,0.15)", tension: 0.25, fill: true },
-        { label: "Utilidad", data: utilidades, borderColor: "#2E7D4F", backgroundColor: "rgba(46,125,79,0.15)", tension: 0.25, fill: true }
+        {
+          label: "Ventas", data: ventas, borderColor: COLOR_VENTAS, borderWidth: 2.5,
+          backgroundColor: (c) => crearDegradado(c, COLOR_VENTAS, 0.28),
+          tension: 0.35, fill: true, pointRadius: 3, pointHoverRadius: 5,
+          pointBackgroundColor: "#fff", pointBorderColor: COLOR_VENTAS, pointBorderWidth: 2
+        },
+        {
+          label: "Utilidad", data: utilidades, borderColor: COLOR_UTILIDAD, borderWidth: 2.5,
+          backgroundColor: (c) => crearDegradado(c, COLOR_UTILIDAD, 0.24),
+          tension: 0.35, fill: true, pointRadius: 3, pointHoverRadius: 5,
+          pointBackgroundColor: "#fff", pointBorderColor: COLOR_UTILIDAD, pointBorderWidth: 2
+        }
       ]
     },
-    options: { responsive: true, plugins: { legend: { position: "bottom" } } }
+    options: {
+      responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: "#1A1A1A", padding: 12, cornerRadius: 10, boxPadding: 6,
+          titleFont: { weight: "700", size: 12.5 }, bodyFont: { size: 12.5 },
+          callbacks: { label: (item) => `${item.dataset.label}: ${formatoSoles(item.parsed.y)}` }
+        }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 11.5, weight: "600" } } },
+        y: {
+          grid: { color: "#E7E8EB", drawTicks: false }, border: { display: false },
+          ticks: { font: { size: 11 }, callback: (v) => "S/ " + v.toLocaleString("es-PE") }
+        }
+      }
+    }
   });
+
+  const leyenda = document.getElementById("leyendaTendencia");
+  if (leyenda) {
+    leyenda.innerHTML = `
+      <div class="item"><span class="punto" style="background:${COLOR_VENTAS}"></span>Ventas</div>
+      <div class="item"><span class="punto" style="background:${COLOR_UTILIDAD}"></span>Utilidad</div>
+    `;
+  }
 }
 
 function construirGraficoDoughnut(id, etiquetas, valores){
   destruirGrafico(id);
   const ctx = document.getElementById(id);
   if (!ctx) return;
+  const colores = ["#C0392B","#C89B3C","#1E8E5A","#7A7168"];
+  const total = valores.reduce((s, v) => s + (Number(v) || 0), 0);
+
+  const lienzo = ctx.closest(".grafico-lienzo");
+  if (lienzo && !lienzo.id) lienzo.id = "lienzo_" + id;
+  if (lienzo) actualizarEstadoVacioGrafico(lienzo.id, total <= 0, "Sin gastos este mes", "Registra un gasto para ver su distribución por categoría.");
+
+  const textoCentral = {
+    id: "textoCentral_" + id,
+    afterDraw(chart){
+      if (total <= 0) return;
+      const { ctx: c, chartArea: area } = chart;
+      if (!area) return;
+      const cx = (area.left + area.right) / 2, cy = (area.top + area.bottom) / 2;
+      c.save();
+      c.textAlign = "center"; c.textBaseline = "middle";
+      c.font = "800 15px " + FUENTE_GRAFICO;
+      c.fillStyle = "#1A1A1A";
+      c.fillText(formatoSoles(total), cx, cy - 8);
+      c.font = "600 10.5px " + FUENTE_GRAFICO;
+      c.fillStyle = "#9CA0A6";
+      c.fillText("TOTAL", cx, cy + 11);
+      c.restore();
+    }
+  };
+
   GRAFICOS_DASH[id] = new Chart(ctx, {
     type: "doughnut",
-    data: { labels: etiquetas, datasets: [{ data: valores, backgroundColor: ["#C0392B","#C89B3C","#2E7D4F","#7A7168"] }] },
-    options: { responsive: true, plugins: { legend: { position: "bottom" } } }
+    data: { labels: etiquetas, datasets: [{ data: valores, backgroundColor: colores, borderColor: "#fff", borderWidth: 3, hoverOffset: 6 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: "72%",
+      plugins: {
+        legend: {
+          position: "bottom", labels: { usePointStyle: true, pointStyle: "circle", boxWidth: 8, padding: 14, font: { size: 11.5, weight: "600" } }
+        },
+        tooltip: {
+          backgroundColor: "#1A1A1A", padding: 12, cornerRadius: 10, boxPadding: 6,
+          callbacks: { label: (item) => `${item.label}: ${formatoSoles(item.parsed)}` }
+        }
+      }
+    },
+    plugins: [textoCentral]
   });
 }
 
@@ -2508,11 +2710,39 @@ function construirGraficoBarras(id, etiquetas, valores, etiquetaSerie, colorPorS
   destruirGrafico(id);
   const ctx = document.getElementById(id);
   if (!ctx) return;
-  const colores = colorPorSigno ? valores.map(v => v >= 0 ? "#2E7D4F" : "#C0392B") : "#C0392B";
+  const colorBase = "#C0392B", colorPositivo = "#1E8E5A";
+  const colores = colorPorSigno ? valores.map(v => v >= 0 ? colorPositivo : colorBase) : colorBase;
+
+  const lienzo = ctx.closest(".grafico-lienzo");
+  if (lienzo && !lienzo.id) lienzo.id = "lienzo_" + id;
+  if (lienzo) {
+    actualizarEstadoVacioGrafico(lienzo.id, etiquetas.length === 0,
+      colorPorSigno ? "Sin lotes con precio definido" : "Sin ventas este mes",
+      colorPorSigno ? "Asigna un precio de venta a un lote para ver su rentabilidad." : "Aún no hay unidades vendidas en este período.");
+    // Las barras horizontales necesitan más alto mientras más categorías
+    // haya, para que no se vean apretadas — puramente de estilo.
+    if (!lienzo.classList.contains("h-md") && !lienzo.classList.contains("h-sm") && !lienzo.classList.contains("h-lg")) {
+      lienzo.style.height = Math.max(220, Math.min(520, etiquetas.length * 34 + 60)) + "px";
+    }
+  }
+
   GRAFICOS_DASH[id] = new Chart(ctx, {
     type: "bar",
-    data: { labels: etiquetas, datasets: [{ label: etiquetaSerie, data: valores, backgroundColor: colores }] },
-    options: { responsive: true, indexAxis: "y", plugins: { legend: { display: false } } }
+    data: { labels: etiquetas, datasets: [{ label: etiquetaSerie, data: valores, backgroundColor: colores, borderRadius: 6, borderSkipped: false, barThickness: "flex", maxBarThickness: 26 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false, indexAxis: "y",
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: "#1A1A1A", padding: 12, cornerRadius: 10, boxPadding: 6,
+          callbacks: { label: (item) => `${etiquetaSerie}: ${colorPorSigno ? item.parsed.x.toFixed(1) + "%" : item.parsed.x.toLocaleString("es-PE")}` }
+        }
+      },
+      scales: {
+        x: { grid: { color: "#E7E8EB", drawTicks: false }, border: { display: false }, ticks: { font: { size: 11 } } },
+        y: { grid: { display: false }, ticks: { font: { size: 11.5, weight: "600" } } }
+      }
+    }
   });
 }
 
