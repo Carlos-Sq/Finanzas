@@ -999,6 +999,44 @@ function invalidarModulos(...nombres){
   nombres.forEach(invalidarModulo);
 }
 
+/* =============================================================
+   CACHE SIMPLE POR MES/AÑO — evita repetir fetch de datos que no
+   cambiaron. Usado sobre todo por "resumenMensual", que se pide
+   desde 4 lugares distintos (Estado de Resultados, Dashboard,
+   gráfico de tendencia de 6 meses, y Reportes) y casi siempre para
+   los mismos periodos ya consultados. Se invalida SOLO la clave del
+   mes/año realmente afectado por una venta/gasto/lote (ver
+   invalidarResumenMensualDeFecha), nunca el cache completo.
+   ============================================================= */
+const CACHE_DATOS = {};
+
+async function obtenerResumenMensualCacheado(mes, anio){
+  const key = `resumenMensual:${mes}:${anio}`;
+  if (CACHE_DATOS[key]) return CACHE_DATOS[key];
+  const data = await fetch(`${CONFIG.appsScriptUrl}?accion=resumenMensual&mes=${mes}&anio=${anio}`).then(r => r.json());
+  CACHE_DATOS[key] = data;
+  return data;
+}
+
+// Invalida el resumen cacheado del mes/año que corresponde a una
+// fecha dada (ej. la fecha de la venta/gasto/lote recién guardado).
+// Si no se puede determinar la fecha, invalida el mes actual (lo más
+// probable, ya que las fechas por defecto de los formularios son
+// "hoy").
+function invalidarResumenMensualDeFecha(fechaStr){
+  let mes, anio;
+  if (fechaStr) {
+    const f = new Date(fechaStr + "T00:00:00");
+    mes = f.getMonth() + 1;
+    anio = f.getFullYear();
+  } else {
+    const hoy = new Date();
+    mes = hoy.getMonth() + 1;
+    anio = hoy.getFullYear();
+  }
+  delete CACHE_DATOS[`resumenMensual:${mes}:${anio}`];
+}
+
 // (Prompt 5) — estado del selector de lote en el formulario de venta
 let LOTES_MODELO_VENTA = [];   // lotes activos del modelo elegido actualmente en el formulario
 let LOTE_ELEGIDO_VENTA = "";   // loteId elegido por el usuario (o auto, si solo hay uno)
@@ -1335,6 +1373,7 @@ async function guardarLote(){
       poblarCategoriasVenta();
       // Producir un lote genera stock nuevo (Inventario) y, si tenía
       // cuenta asignada, un movimiento de caja; ambos afectan el Dashboard.
+      invalidarResumenMensualDeFecha(datos.fecha);
       invalidarModulos("inventario", "dashboard", "flujoCaja");
     } else {
       msg.innerHTML = `<div class="msg-error">${escapeHtml(data.mensaje || "No se pudo guardar el lote")}</div>`;
@@ -1476,6 +1515,9 @@ async function guardarCosteo(){
       await cargarCosteo();
       await cargarProductos();
       poblarCategoriasVenta();
+      // El stock mínimo del catálogo afecta el indicador de "stock bajo"
+      // tanto en el Dashboard como en la pestaña Inventario.
+      invalidarModulos("dashboard", "inventario");
     } else {
       msg.innerHTML = `<div class="msg-error">${escapeHtml(data.mensaje || "No se pudo guardar")}</div>`;
     }
@@ -1498,6 +1540,7 @@ async function borrarCosteo(id, nombre){
       await cargarCosteo();
       await cargarProductos();
       poblarCategoriasVenta();
+      invalidarModulos("dashboard", "inventario");
     } else {
       alert(data.mensaje || "No se pudo eliminar.");
     }
@@ -1629,6 +1672,7 @@ async function ejecutarRegistroVenta(datos, msg){
       cargarLotes(); // refresca stock por lote (tabla de producción, siempre visible en Costeo)
       // Una venta mueve stock, caja, y los indicadores del Dashboard y
       // de Recuperación por Lote — se actualiza solo lo afectado.
+      invalidarResumenMensualDeFecha(datos.fecha);
       invalidarModulos("registros", "inventario", "dashboard", "flujoCaja", "recuperacionLotes");
     } else if (data.status === "seleccion_lote_requerida") {
       // Red de seguridad: el stock de los lotes cambió entre que se
@@ -1782,6 +1826,7 @@ async function enviarGasto(){
       document.getElementById("gastoEsFijo").checked = false;
       // Un gasto afecta la tabla de gastos, el Dashboard y (si tenía
       // cuenta) el Flujo de Caja — nunca el inventario.
+      invalidarResumenMensualDeFecha(datos.fecha);
       invalidarModulos("registros", "dashboard", "flujoCaja");
     } else {
       msg.innerHTML = `<div class="msg-error">${escapeHtml(data.mensaje || "No se pudo registrar")}</div>`;
@@ -1857,8 +1902,7 @@ async function generarEstadoResultados(){
   cont.innerHTML = `<div class="estado-carga">Calculando…</div>`;
 
   try {
-    const res = await fetch(`${CONFIG.appsScriptUrl}?accion=resumenMensual&mes=${mes}&anio=${anio}`);
-    RESUMEN_ACTUAL = await res.json();
+    RESUMEN_ACTUAL = await obtenerResumenMensualCacheado(mes, anio);
     renderEstadoResultados();
   } catch (err) {
     cont.innerHTML = `<div class="msg-error">No se pudo conectar con tu Google Sheet. Revisa CONFIG.appsScriptUrl.</div>`;
@@ -2027,7 +2071,7 @@ async function cargarDashboard(){
 
   try {
     const [resResumen, resInv, datosMes, flujoReal, saldosReal] = await Promise.all([
-      fetch(`${CONFIG.appsScriptUrl}?accion=resumenMensual&mes=${mes}&anio=${anio}`).then(r => r.json()),
+      obtenerResumenMensualCacheado(mes, anio),
       fetch(`${CONFIG.appsScriptUrl}?accion=inventario`).then(r => r.json()),
       obtenerDatosDelMes(mes, anio),
       fetch(`${CONFIG.appsScriptUrl}?accion=flujoCaja&mes=${mes}&anio=${anio}`).then(r => r.json()),
@@ -2138,7 +2182,7 @@ async function construirGraficoTendencia(mesActual, anioActual){
     meses.push({ mes: mm, anio: aa });
   }
   const resultados = await Promise.all(meses.map(({mes, anio}) =>
-    fetch(`${CONFIG.appsScriptUrl}?accion=resumenMensual&mes=${mes}&anio=${anio}`).then(r => r.json())
+    obtenerResumenMensualCacheado(mes, anio)
   ));
   const etiquetas = meses.map(({mes, anio}) => `${NOMBRES_MES[mes-1].slice(0,3)} ${anio}`);
   const ventas = resultados.map(r => r.ventasNetas);
@@ -2485,7 +2529,7 @@ async function obtenerDatosReporte(tipo){
   const anio = document.getElementById("repAnio").value;
 
   if (tipo === "estadoResultados") {
-    const r = await fetch(`${CONFIG.appsScriptUrl}?accion=resumenMensual&mes=${mes}&anio=${anio}`).then(x => x.json());
+    const r = await obtenerResumenMensualCacheado(mes, anio);
     // Mismas cifras que el Estado de Resultados y el Dashboard: el
     // reporte exportado no aplica impuesto ni ORI, solo el tramo
     // "hasta utilidad antes de impuestos".
